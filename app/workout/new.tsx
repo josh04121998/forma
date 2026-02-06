@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { createWorkout, addWorkoutSet } from '@/lib/storage';
 
 interface ExerciseSet {
   id: string;
@@ -108,11 +109,47 @@ export default function NewWorkoutScreen() {
     );
   };
 
-  const finishWorkout = () => {
-    // TODO: Save to Supabase
-    Alert.alert('Workout Complete!', `Duration: ${formatTime(timer)}`, [
-      { text: 'OK', onPress: () => router.back() },
-    ]);
+  const finishWorkout = async () => {
+    // Filter out exercises with no name or no completed sets
+    const validExercises = exercises.filter(ex => 
+      ex.name.trim() && ex.sets.some(s => s.completed)
+    );
+
+    if (validExercises.length === 0) {
+      Alert.alert('No Exercises', 'Complete at least one set before finishing.');
+      return;
+    }
+
+    try {
+      // Create workout in local storage
+      const workout = await createWorkout({
+        name: workoutName.trim() || `Workout ${new Date().toLocaleDateString()}`,
+        durationMinutes: Math.floor(timer / 60),
+        completedAt: new Date().toISOString(),
+      });
+
+      // Save all completed sets
+      for (const exercise of validExercises) {
+        const completedSets = exercise.sets.filter(s => s.completed);
+        for (let i = 0; i < completedSets.length; i++) {
+          const set = completedSets[i];
+          await addWorkoutSet({
+            workoutId: workout.id,
+            exerciseName: exercise.name,
+            setNumber: i + 1,
+            reps: set.reps ? parseInt(set.reps) : undefined,
+            weightKg: set.weight ? parseFloat(set.weight) : undefined,
+          });
+        }
+      }
+
+      Alert.alert('Workout Saved! 💪', `Duration: ${formatTime(timer)}`, [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+    } catch (error) {
+      console.error('Error saving workout:', error);
+      Alert.alert('Error', 'Failed to save workout. Please try again.');
+    }
   };
 
   return (
