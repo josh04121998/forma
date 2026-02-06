@@ -21,6 +21,7 @@ export default function AICoachScreen() {
     goal: 'build_muscle',
     experience: 'intermediate',
     workoutDays: 4,
+    workoutDuration: 60,
     equipment: 'full_gym',
     injuries: '',
     dietaryRestrictions: [],
@@ -192,7 +193,7 @@ export default function AICoachScreen() {
       <View style={styles.field}>
         <Text style={styles.label}>Days per week you can workout</Text>
         <View style={styles.optionRow}>
-          {[2, 3, 4, 5, 6].map((d) => (
+          {[1, 2, 3, 4, 5, 6, 7].map((d) => (
             <TouchableOpacity
               key={d}
               style={[styles.smallOption, profile.workoutDays === d && styles.optionActive]}
@@ -200,6 +201,23 @@ export default function AICoachScreen() {
             >
               <Text style={[styles.optionText, profile.workoutDays === d && styles.optionTextActive]}>
                 {d}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.field}>
+        <Text style={styles.label}>Time available per workout</Text>
+        <View style={styles.optionRow}>
+          {([30, 45, 60, 90] as const).map((mins) => (
+            <TouchableOpacity
+              key={mins}
+              style={[styles.option, profile.workoutDuration === mins && styles.optionActive]}
+              onPress={() => updateProfile('workoutDuration', mins)}
+            >
+              <Text style={[styles.optionText, profile.workoutDuration === mins && styles.optionTextActive]}>
+                {mins}min
               </Text>
             </TouchableOpacity>
           ))}

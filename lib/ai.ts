@@ -8,7 +8,8 @@ export interface UserProfile {
   weight: number; // kg
   goal: 'lose_fat' | 'build_muscle' | 'maintain' | 'strength';
   experience: 'beginner' | 'intermediate' | 'advanced';
-  workoutDays: number; // 2-6
+  workoutDays: number; // 1-7
+  workoutDuration: 30 | 45 | 60 | 90; // minutes per session
   equipment: 'full_gym' | 'home' | 'bodyweight';
   injuries?: string;
   dietaryRestrictions?: string[];
@@ -109,6 +110,7 @@ export async function generateFullProgram(profile: UserProfile, apiKey: string):
 - Goal: ${profile.goal.replace('_', ' ')}
 - Experience: ${profile.experience}
 - Available days per week: ${profile.workoutDays}
+- Time per workout: ${profile.workoutDuration} minutes (STRICT - workouts must fit this time limit)
 - Equipment: ${profile.equipment.replace('_', ' ')}
 ${profile.injuries ? `- Injuries/Limitations: ${profile.injuries}` : ''}
 ${profile.dietaryRestrictions?.length ? `- Dietary restrictions: ${profile.dietaryRestrictions.join(', ')}` : ''}
@@ -153,6 +155,7 @@ Create a comprehensive program. Return ONLY valid JSON (no markdown, no explanat
 }
 
 Include all 7 days in the schedule. Match workout days to ${profile.workoutDays} training days.
+Each workout must be completable in ${profile.workoutDuration} minutes or less (including rest periods).
 Meal plan should hit the calorie and macro targets.`;
 
   const response = await callGroq(prompt, apiKey);
