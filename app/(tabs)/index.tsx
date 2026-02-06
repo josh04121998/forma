@@ -5,10 +5,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { getWorkoutStats, getWorkouts, LocalWorkout } from '@/lib/storage';
+import { useAuth } from '@/lib/auth';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const { user, syncing } = useAuth();
   const [stats, setStats] = useState({
     totalWorkouts: 0,
     thisWeek: 0,
@@ -92,9 +94,13 @@ export default function DashboardScreen() {
           </View>
           
           <View style={styles.statCard}>
-            <Ionicons name="cloud-offline-outline" size={20} color="#888" />
-            <Text style={styles.statValue}>Local</Text>
-            <Text style={styles.statLabel}>Storage</Text>
+            <Ionicons 
+              name={user ? "cloud-done-outline" : "cloud-offline-outline"} 
+              size={20} 
+              color={user ? "#30d158" : "#888"} 
+            />
+            <Text style={styles.statValue}>{user ? 'Synced' : 'Local'}</Text>
+            <Text style={styles.statLabel}>{user ? 'Cloud Backup' : 'Storage'}</Text>
           </View>
         </View>
 
@@ -133,15 +139,18 @@ export default function DashboardScreen() {
           )}
         </View>
 
-        {/* Sign Up Prompt (shown after first workout) */}
-        {stats.totalWorkouts > 0 && (
+        {/* Sign Up Prompt (shown after first workout, only if not logged in) */}
+        {stats.totalWorkouts > 0 && !user && (
           <View style={styles.signupPrompt}>
             <Ionicons name="cloud-upload-outline" size={24} color="#007AFF" />
             <View style={styles.signupText}>
               <Text style={styles.signupTitle}>Backup your progress</Text>
               <Text style={styles.signupSubtitle}>Create an account to sync across devices</Text>
             </View>
-            <TouchableOpacity style={styles.signupButton}>
+            <TouchableOpacity 
+              style={styles.signupButton}
+              onPress={() => router.push('/auth/signup')}
+            >
               <Text style={styles.signupButtonText}>Sign Up</Text>
             </TouchableOpacity>
           </View>
