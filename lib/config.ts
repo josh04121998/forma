@@ -1,15 +1,15 @@
-// Configuration - API keys loaded from environment
-// Create a .env file with your keys (see .env.example)
+// Configuration - loads from .env file
+// Expo requires EXPO_PUBLIC_ prefix and .env file (not .env.local)
+// Restart Expo after changing env vars: npx expo start -c
 
 export const config = {
-  groqApiKey: process.env.EXPO_PUBLIC_GROQ_API_KEY || '',
-  supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL || '',
-  supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+  groqApiKey: process.env.EXPO_PUBLIC_GROQ_API_KEY ?? '',
+  supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL ?? '',
+  supabaseAnonKey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '',
 };
 
-// For development/testing, you can temporarily set keys here
-// WARNING: Never commit real API keys to git!
-// export const config = {
-//   groqApiKey: 'your-key-here',
-//   ...
-// };
+// Debug: uncomment to check if env vars are loaded
+// console.log('Config loaded:', { 
+//   hasGroqKey: !!config.groqApiKey,
+//   hasSupabase: !!config.supabaseUrl 
+// });

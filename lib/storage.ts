@@ -7,20 +7,39 @@ import { v4 as uuidv4 } from 'uuid';
 const KEYS = {
   WORKOUTS: 'forma_workouts',
   WORKOUT_SETS: 'forma_workout_sets',
+  TEMPLATES: 'forma_templates', // Workout templates (reusable)
   PROGRAMS: 'forma_programs',
   MEAL_PLANS: 'forma_meal_plans',
   PROGRESS: 'forma_progress',
   PROFILE: 'forma_profile',
-  PENDING_SYNC: 'forma_pending_sync',
+  INITIALIZED: 'forma_initialized',
 };
 
+// ============================================
 // Types
+// ============================================
+export interface WorkoutTemplate {
+  id: string;
+  name: string;
+  exercises: TemplateExercise[];
+  isDefault?: boolean; // Pre-populated templates
+  createdAt: string;
+}
+
+export interface TemplateExercise {
+  id: string;
+  name: string;
+  targetSets: number;
+  targetReps: string; // e.g., "8-12"
+  notes?: string;
+}
+
 export interface LocalWorkout {
   id: string;
+  templateId?: string; // Which template this was started from
   name: string;
   notes?: string;
   programId?: string;
-  durationMinutes?: number;
   startedAt: string;
   completedAt?: string;
   syncStatus: 'pending' | 'synced';
@@ -36,6 +55,7 @@ export interface LocalWorkoutSet {
   weightKg?: number;
   rpe?: number;
   notes?: string;
+  completed: boolean;
   syncStatus: 'pending' | 'synced';
   createdAt: string;
 }
@@ -76,7 +96,51 @@ export interface LocalMealPlan {
   createdAt: string;
 }
 
-// Generic helpers
+// ============================================
+// Default PPL Templates
+// ============================================
+const DEFAULT_TEMPLATES: Omit<WorkoutTemplate, 'id' | 'createdAt'>[] = [
+  {
+    name: 'Push Day',
+    isDefault: true,
+    exercises: [
+      { id: '1', name: 'Bench Press', targetSets: 4, targetReps: '6-8' },
+      { id: '2', name: 'Overhead Press', targetSets: 3, targetReps: '8-10' },
+      { id: '3', name: 'Incline Dumbbell Press', targetSets: 3, targetReps: '10-12' },
+      { id: '4', name: 'Lateral Raise', targetSets: 3, targetReps: '12-15' },
+      { id: '5', name: 'Tricep Pushdown', targetSets: 3, targetReps: '10-12' },
+      { id: '6', name: 'Overhead Tricep Extension', targetSets: 2, targetReps: '12-15' },
+    ],
+  },
+  {
+    name: 'Pull Day',
+    isDefault: true,
+    exercises: [
+      { id: '1', name: 'Deadlift', targetSets: 4, targetReps: '5-6' },
+      { id: '2', name: 'Pull-ups', targetSets: 3, targetReps: '6-10' },
+      { id: '3', name: 'Barbell Row', targetSets: 3, targetReps: '8-10' },
+      { id: '4', name: 'Face Pull', targetSets: 3, targetReps: '15-20' },
+      { id: '5', name: 'Barbell Curl', targetSets: 3, targetReps: '10-12' },
+      { id: '6', name: 'Hammer Curl', targetSets: 2, targetReps: '12-15' },
+    ],
+  },
+  {
+    name: 'Leg Day',
+    isDefault: true,
+    exercises: [
+      { id: '1', name: 'Barbell Squat', targetSets: 4, targetReps: '6-8' },
+      { id: '2', name: 'Romanian Deadlift', targetSets: 3, targetReps: '8-10' },
+      { id: '3', name: 'Leg Press', targetSets: 3, targetReps: '10-12' },
+      { id: '4', name: 'Leg Curl', targetSets: 3, targetReps: '10-12' },
+      { id: '5', name: 'Leg Extension', targetSets: 3, targetReps: '12-15' },
+      { id: '6', name: 'Calf Raises', targetSets: 4, targetReps: '12-15' },
+    ],
+  },
+];
+
+// ============================================
+// Helpers
+// ============================================
 async function getArray<T>(key: string): Promise<T[]> {
   try {
     const data = await AsyncStorage.getItem(key);
@@ -96,7 +160,68 @@ async function setArray<T>(key: string, data: T[]): Promise<void> {
 }
 
 // ============================================
-// Workouts
+// Initialize with defaults
+// ============================================
+export async function initializeDefaults(): Promise<void> {
+  const initialized = await AsyncStorage.getItem(KEYS.INITIALIZED);
+  if (initialized) return;
+
+  // Add default templates
+  const templates: WorkoutTemplate[] = DEFAULT_TEMPLATES.map(t => ({
+    ...t,
+    id: uuidv4(),
+    createdAt: new Date().toISOString(),
+  }));
+  await setArray(KEYS.TEMPLATES, templates);
+  await AsyncStorage.setItem(KEYS.INITIALIZED, 'true');
+}
+
+// ============================================
+// Workout Templates
+// ============================================
+export async function getTemplates(): Promise<WorkoutTemplate[]> {
+  await initializeDefaults();
+  return getArray<WorkoutTemplate>(KEYS.TEMPLATES);
+}
+
+export async function getTemplate(id: string): Promise<WorkoutTemplate | null> {
+  const templates = await getTemplates();
+  return templates.find(t => t.id === id) || null;
+}
+
+export async function createTemplate(data: Omit<WorkoutTemplate, 'id' | 'createdAt'>): Promise<WorkoutTemplate> {
+  const template: WorkoutTemplate = {
+    ...data,
+    id: uuidv4(),
+    createdAt: new Date().toISOString(),
+  };
+  
+  const templates = await getArray<WorkoutTemplate>(KEYS.TEMPLATES);
+  templates.push(template);
+  await setArray(KEYS.TEMPLATES, templates);
+  
+  return template;
+}
+
+export async function updateTemplate(id: string, updates: Partial<WorkoutTemplate>): Promise<WorkoutTemplate | null> {
+  const templates = await getArray<WorkoutTemplate>(KEYS.TEMPLATES);
+  const index = templates.findIndex(t => t.id === id);
+  
+  if (index === -1) return null;
+  
+  templates[index] = { ...templates[index], ...updates };
+  await setArray(KEYS.TEMPLATES, templates);
+  
+  return templates[index];
+}
+
+export async function deleteTemplate(id: string): Promise<void> {
+  const templates = await getArray<WorkoutTemplate>(KEYS.TEMPLATES);
+  await setArray(KEYS.TEMPLATES, templates.filter(t => t.id !== id));
+}
+
+// ============================================
+// Workouts (logged sessions)
 // ============================================
 export async function getWorkouts(): Promise<LocalWorkout[]> {
   const workouts = await getArray<LocalWorkout>(KEYS.WORKOUTS);
@@ -114,9 +239,9 @@ export async function createWorkout(data: Partial<LocalWorkout>): Promise<LocalW
   const workout: LocalWorkout = {
     id: uuidv4(),
     name: data.name || 'Workout',
+    templateId: data.templateId,
     notes: data.notes,
     programId: data.programId,
-    durationMinutes: data.durationMinutes,
     startedAt: data.startedAt || new Date().toISOString(),
     completedAt: data.completedAt,
     syncStatus: 'pending',
@@ -146,7 +271,6 @@ export async function deleteWorkout(id: string): Promise<void> {
   const workouts = await getArray<LocalWorkout>(KEYS.WORKOUTS);
   await setArray(KEYS.WORKOUTS, workouts.filter(w => w.id !== id));
   
-  // Also delete associated sets
   const sets = await getArray<LocalWorkoutSet>(KEYS.WORKOUT_SETS);
   await setArray(KEYS.WORKOUT_SETS, sets.filter(s => s.workoutId !== id));
 }
@@ -192,7 +316,7 @@ export async function deleteWorkoutSet(id: string): Promise<void> {
 }
 
 // ============================================
-// Profile (onboarding data)
+// Profile
 // ============================================
 export async function getProfile(): Promise<LocalProfile> {
   try {
@@ -229,7 +353,6 @@ export async function saveProgram(data: Omit<LocalProgram, 'id' | 'createdAt'>):
     createdAt: new Date().toISOString(),
   };
   
-  // Deactivate other programs if this one is active
   let programs = await getArray<LocalProgram>(KEYS.PROGRAMS);
   if (program.active) {
     programs = programs.map(p => ({ ...p, active: false }));
@@ -272,7 +395,7 @@ export async function saveMealPlan(data: Omit<LocalMealPlan, 'id' | 'createdAt'>
 }
 
 // ============================================
-// Stats / Summary
+// Stats
 // ============================================
 export async function getWorkoutStats(): Promise<{
   totalWorkouts: number;
@@ -300,7 +423,7 @@ export async function getWorkoutStats(): Promise<{
 }
 
 // ============================================
-// Clear all data (for testing/logout)
+// Clear all data
 // ============================================
 export async function clearAllData(): Promise<void> {
   await Promise.all(

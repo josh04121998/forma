@@ -1,32 +1,35 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { getWorkoutStats, getWorkouts, LocalWorkout } from '@/lib/storage';
+import { getWorkoutStats, getWorkouts, getTemplates, LocalWorkout, WorkoutTemplate } from '@/lib/storage';
 import { useAuth } from '@/lib/auth';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function DashboardScreen() {
   const router = useRouter();
-  const { user, syncing } = useAuth();
+  const { user } = useAuth();
   const [stats, setStats] = useState({
     totalWorkouts: 0,
     thisWeek: 0,
     totalSets: 0,
   });
   const [recentWorkouts, setRecentWorkouts] = useState<LocalWorkout[]>([]);
+  const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     try {
-      const [workoutStats, workouts] = await Promise.all([
+      const [workoutStats, workouts, templateList] = await Promise.all([
         getWorkoutStats(),
         getWorkouts(),
+        getTemplates(),
       ]);
       setStats(workoutStats);
-      setRecentWorkouts(workouts.slice(0, 5)); // Last 5 workouts
+      setRecentWorkouts(workouts.slice(0, 3));
+      setTemplates(templateList.slice(0, 3));
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -34,75 +37,84 @@ export default function DashboardScreen() {
     }
   }, []);
 
-  // Reload data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       loadData();
     }, [loadData])
   );
 
-  const formatDuration = (minutes?: number) => {
-    if (!minutes) return '-';
-    if (minutes < 60) return `${minutes}m`;
-    const hrs = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hrs}h ${mins}m`;
-  };
-
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <Text style={styles.greeting}>Let's crush it 💪</Text>
         
-        {/* Quick Actions */}
-        <View style={styles.quickActions}>
-          <TouchableOpacity 
-            style={styles.primaryButton}
-            onPress={() => router.push('/workout/new')}
-          >
-            <Ionicons name="barbell" size={24} color="#fff" />
-            <Text style={styles.primaryButtonText}>Start Workout</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.secondaryButton}
-            onPress={() => router.push('/(tabs)/ai')}
-          >
-            <Ionicons name="sparkles" size={24} color="#fff" />
-            <Text style={styles.secondaryButtonText}>AI Coach</Text>
-          </TouchableOpacity>
-        </View>
-
         {/* Stats Grid */}
-        <View style={styles.statsGrid}>
+        <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <Ionicons name="calendar-outline" size={20} color="#007AFF" />
             <Text style={styles.statValue}>{stats.thisWeek}</Text>
             <Text style={styles.statLabel}>This Week</Text>
           </View>
-          
           <View style={styles.statCard}>
-            <Ionicons name="barbell-outline" size={20} color="#30d158" />
             <Text style={styles.statValue}>{stats.totalWorkouts}</Text>
-            <Text style={styles.statLabel}>Total Workouts</Text>
+            <Text style={styles.statLabel}>Total</Text>
           </View>
-          
           <View style={styles.statCard}>
-            <Ionicons name="layers-outline" size={20} color="#ff9f0a" />
             <Text style={styles.statValue}>{stats.totalSets}</Text>
-            <Text style={styles.statLabel}>Total Sets</Text>
-          </View>
-          
-          <View style={styles.statCard}>
-            <Ionicons 
-              name={user ? "cloud-done-outline" : "cloud-offline-outline"} 
-              size={20} 
-              color={user ? "#30d158" : "#888"} 
-            />
-            <Text style={styles.statValue}>{user ? 'Synced' : 'Local'}</Text>
-            <Text style={styles.statLabel}>{user ? 'Cloud Backup' : 'Storage'}</Text>
+            <Text style={styles.statLabel}>Sets</Text>
           </View>
         </View>
+
+        {/* Quick Start - Workout Templates */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Quick Start</Text>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/workouts')}>
+              <Text style={styles.seeAll}>See All</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.templatesRow}
+          >
+            {templates.map((template) => (
+              <TouchableOpacity
+                key={template.id}
+                style={styles.templateCard}
+                onPress={() => router.push(`/workout/start?templateId=${template.id}`)}
+              >
+                <Ionicons name="barbell" size={24} color="#007AFF" />
+                <Text style={styles.templateName}>{template.name}</Text>
+                <Text style={styles.templateMeta}>
+                  {template.exercises.length} exercises
+                </Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity
+              style={[styles.templateCard, styles.templateCardAdd]}
+              onPress={() => router.push('/workout/create')}
+            >
+              <Ionicons name="add" size={24} color="#888" />
+              <Text style={styles.templateAddText}>Create New</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
+
+        {/* AI Coach Promo */}
+        <TouchableOpacity 
+          style={styles.aiPromo}
+          onPress={() => router.push('/(tabs)/ai')}
+        >
+          <View style={styles.aiPromoIcon}>
+            <Ionicons name="sparkles" size={24} color="#fff" />
+          </View>
+          <View style={styles.aiPromoText}>
+            <Text style={styles.aiPromoTitle}>AI Coach</Text>
+            <Text style={styles.aiPromoSubtitle}>Get a personalized workout program</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color="#888" />
+        </TouchableOpacity>
 
         {/* Recent Activity */}
         <View style={styles.section}>
@@ -112,7 +124,7 @@ export default function DashboardScreen() {
             <View style={styles.emptyState}>
               <Ionicons name="barbell-outline" size={48} color="#444" />
               <Text style={styles.emptyText}>No workouts yet</Text>
-              <Text style={styles.emptySubtext}>Start your first workout!</Text>
+              <Text style={styles.emptySubtext}>Pick a workout above to start!</Text>
             </View>
           ) : (
             recentWorkouts.map((workout) => (
@@ -124,22 +136,17 @@ export default function DashboardScreen() {
                       ? formatDistanceToNow(new Date(workout.completedAt), { addSuffix: true })
                       : 'In progress'
                     }
-                    {workout.durationMinutes ? ` • ${formatDuration(workout.durationMinutes)}` : ''}
                   </Text>
                 </View>
-                <View style={styles.syncBadge}>
-                  <Ionicons 
-                    name={workout.syncStatus === 'synced' ? 'cloud-done' : 'cloud-offline'} 
-                    size={16} 
-                    color={workout.syncStatus === 'synced' ? '#30d158' : '#888'} 
-                  />
-                </View>
+                {workout.completedAt && (
+                  <Ionicons name="checkmark-circle" size={20} color="#30d158" />
+                )}
               </View>
             ))
           )}
         </View>
 
-        {/* Sign Up Prompt (shown after first workout, only if not logged in) */}
+        {/* Sign Up Prompt */}
         {stats.totalWorkouts > 0 && !user && (
           <View style={styles.signupPrompt}>
             <Ionicons name="cloud-upload-outline" size={24} color="#007AFF" />
@@ -176,70 +183,107 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
     marginTop: 16,
-    marginBottom: 24,
+    marginBottom: 20,
   },
-  quickActions: {
+  statsRow: {
     flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  primaryButton: {
-    flex: 1,
-    backgroundColor: '#007AFF',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    gap: 8,
-  },
-  primaryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  secondaryButton: {
-    flex: 1,
-    backgroundColor: '#1c1c1e',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    gap: 8,
-  },
-  secondaryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 12,
     marginBottom: 24,
   },
   statCard: {
-    width: '47%',
+    flex: 1,
     backgroundColor: '#1c1c1e',
     borderRadius: 16,
     padding: 16,
-    gap: 4,
+    alignItems: 'center',
   },
   statValue: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
-    marginTop: 8,
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#888',
+    marginTop: 4,
   },
   section: {
     marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: '#fff',
-    marginBottom: 16,
+  },
+  seeAll: {
+    fontSize: 15,
+    color: '#007AFF',
+  },
+  templatesRow: {
+    gap: 12,
+  },
+  templateCard: {
+    backgroundColor: '#1c1c1e',
+    borderRadius: 16,
+    padding: 16,
+    width: 140,
+    gap: 8,
+  },
+  templateCardAdd: {
+    borderWidth: 1,
+    borderColor: '#333',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  templateName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  templateMeta: {
+    fontSize: 13,
+    color: '#888',
+  },
+  templateAddText: {
+    fontSize: 14,
+    color: '#888',
+  },
+  aiPromo: {
+    backgroundColor: '#1c1c1e',
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    gap: 12,
+  },
+  aiPromoIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#007AFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiPromoText: {
+    flex: 1,
+  },
+  aiPromoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  aiPromoSubtitle: {
+    fontSize: 14,
+    color: '#888',
+    marginTop: 2,
   },
   emptyState: {
     backgroundColor: '#1c1c1e',
@@ -278,9 +322,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#888',
     marginTop: 4,
-  },
-  syncBadge: {
-    marginLeft: 12,
   },
   signupPrompt: {
     backgroundColor: '#1c1c1e',

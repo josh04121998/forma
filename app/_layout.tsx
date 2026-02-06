@@ -49,10 +49,18 @@ function RootLayoutNav() {
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen 
-            name="workout/new" 
+            name="workout/create" 
+            options={{ 
+              headerShown: false,
+              presentation: 'modal',
+            }} 
+          />
+          <Stack.Screen 
+            name="workout/start" 
             options={{ 
               headerShown: false,
               presentation: 'fullScreenModal',
+              gestureEnabled: false,
             }} 
           />
           <Stack.Screen 
