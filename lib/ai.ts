@@ -1,121 +1,161 @@
-const GROQ_API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY;
+// Groq API for AI generation
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
-interface WorkoutRequest {
-  goal: string;
-  experience: string;
-  duration: number;
-  equipment?: string;
+export interface UserProfile {
+  age: number;
+  gender: 'male' | 'female' | 'other';
+  height: number; // cm
+  weight: number; // kg
+  goal: 'lose_fat' | 'build_muscle' | 'maintain' | 'strength';
+  experience: 'beginner' | 'intermediate' | 'advanced';
+  workoutDays: number; // 2-6
+  equipment: 'full_gym' | 'home' | 'bodyweight';
+  injuries?: string;
+  dietaryRestrictions?: string[];
 }
 
-interface MealRequest {
-  goal: string;
+export interface GeneratedProgram {
+  summary: string;
   calories: number;
-  mealsPerDay: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  workoutPlan: {
+    name: string;
+    schedule: {
+      day: string;
+      workout: {
+        name: string;
+        exercises: {
+          name: string;
+          sets: number;
+          reps: string;
+          rest: string;
+          notes?: string;
+        }[];
+      } | 'Rest';
+    }[];
+  };
+  mealPlan: {
+    meals: {
+      name: string;
+      foods: {
+        name: string;
+        portion: string;
+        calories: number;
+        protein: number;
+      }[];
+    }[];
+  };
 }
 
-async function callGroq(prompt: string): Promise<string> {
-  const response = await fetch(GROQ_API_URL, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${GROQ_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.7,
-      max_tokens: 2000,
-    }),
-  });
+async function callGroq(prompt: string, apiKey: string): Promise<string> {
+  console.log('Calling Groq API...');
+  
+  try {
+    const response = await fetch(GROQ_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 4000,
+      }),
+    });
 
-  if (!response.ok) {
-    throw new Error(`Groq API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  return data.choices[0]?.message?.content || '';
-}
-
-export async function generateWorkout(request: WorkoutRequest) {
-  const prompt = `Generate a workout plan with these parameters:
-- Goal: ${request.goal}
-- Experience level: ${request.experience}
-- Target duration: ${request.duration} minutes
-- Equipment: ${request.equipment || 'full gym'}
-
-Return ONLY a valid JSON object (no markdown, no explanation) with this structure:
-{
-  "name": "workout name",
-  "estimated_duration": number,
-  "exercises": [
-    {
-      "name": "exercise name",
-      "sets": number,
-      "reps": "8-12" or number,
-      "rest_seconds": number,
-      "notes": "optional tips"
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Groq API error:', response.status, errorText);
+      throw new Error(`Groq API error: ${response.status} - ${errorText}`);
     }
-  ]
-}`;
 
-  const response = await callGroq(prompt);
-  
-  // Extract JSON from response (handle potential markdown wrapping)
-  let jsonStr = response;
-  const jsonMatch = response.match(/\{[\s\S]*\}/);
-  if (jsonMatch) {
-    jsonStr = jsonMatch[0];
+    const data = await response.json();
+    console.log('Groq response received');
+    return data.choices[0]?.message?.content || '';
+  } catch (error) {
+    console.error('Groq fetch error:', error);
+    throw error;
   }
-  
-  return JSON.parse(jsonStr);
 }
 
-export async function generateMealPlan(request: MealRequest) {
-  // Calculate macro split based on goal
-  let proteinPct = 0.3, carbsPct = 0.4, fatPct = 0.3;
-  if (request.goal === 'muscle_gain') {
-    proteinPct = 0.35; carbsPct = 0.45; fatPct = 0.2;
-  } else if (request.goal === 'fat_loss') {
-    proteinPct = 0.4; carbsPct = 0.3; fatPct = 0.3;
+export async function generateFullProgram(profile: UserProfile, apiKey: string): Promise<GeneratedProgram> {
+  if (!apiKey) {
+    throw new Error('API key is required. Set EXPO_PUBLIC_GROQ_API_KEY in your .env file.');
   }
 
-  const protein = Math.round((request.calories * proteinPct) / 4);
-  const carbs = Math.round((request.calories * carbsPct) / 4);
-  const fat = Math.round((request.calories * fatPct) / 9);
+  // Calculate TDEE and calorie targets
+  const bmr = profile.gender === 'male'
+    ? 88.362 + (13.397 * profile.weight) + (4.799 * profile.height) - (5.677 * profile.age)
+    : 447.593 + (9.247 * profile.weight) + (3.098 * profile.height) - (4.330 * profile.age);
+  
+  const activityMultiplier = profile.workoutDays <= 2 ? 1.375 : profile.workoutDays <= 4 ? 1.55 : 1.725;
+  const tdee = Math.round(bmr * activityMultiplier);
+  
+  let targetCalories = tdee;
+  if (profile.goal === 'lose_fat') targetCalories = tdee - 500;
+  if (profile.goal === 'build_muscle') targetCalories = tdee + 300;
+  
+  const prompt = `You are a professional fitness coach and nutritionist. Create a complete fitness program for this client:
 
-  const prompt = `Generate a daily meal plan with these requirements:
-- Total calories: ${request.calories}
-- Protein target: ${protein}g
-- Carbs target: ${carbs}g
-- Fat target: ${fat}g
-- Number of meals: ${request.mealsPerDay}
+**Client Profile:**
+- Age: ${profile.age}
+- Gender: ${profile.gender}
+- Height: ${profile.height}cm
+- Weight: ${profile.weight}kg
+- Goal: ${profile.goal.replace('_', ' ')}
+- Experience: ${profile.experience}
+- Available days per week: ${profile.workoutDays}
+- Equipment: ${profile.equipment.replace('_', ' ')}
+${profile.injuries ? `- Injuries/Limitations: ${profile.injuries}` : ''}
+${profile.dietaryRestrictions?.length ? `- Dietary restrictions: ${profile.dietaryRestrictions.join(', ')}` : ''}
 
-Return ONLY a valid JSON object (no markdown, no explanation) with this structure:
+**Calculated Targets:**
+- TDEE: ${tdee} calories
+- Target calories: ${targetCalories} calories
+
+Create a comprehensive program. Return ONLY valid JSON (no markdown, no explanation):
+
 {
-  "name": "meal plan name",
-  "total_calories": number,
-  "total_protein": number,
-  "total_carbs": number,
-  "total_fat": number,
-  "meals": [
-    {
-      "name": "Breakfast",
-      "foods": [
-        {
-          "name": "food item",
-          "portion": "1 cup",
-          "calories": number,
-          "protein": number,
-          "carbs": number,
-          "fat": number
+  "summary": "Brief 2-3 sentence overview of the program and expected results",
+  "calories": ${targetCalories},
+  "protein": <grams based on goal>,
+  "carbs": <grams>,
+  "fat": <grams>,
+  "workoutPlan": {
+    "name": "Program name",
+    "schedule": [
+      {
+        "day": "Monday",
+        "workout": {
+          "name": "Workout name (e.g., Push Day)",
+          "exercises": [
+            {"name": "Exercise", "sets": 3, "reps": "8-12", "rest": "90s", "notes": "optional tip"}
+          ]
         }
-      ]
-    }
-  ]
-}`;
+      },
+      {"day": "Tuesday", "workout": "Rest"}
+    ]
+  },
+  "mealPlan": {
+    "meals": [
+      {
+        "name": "Breakfast",
+        "foods": [
+          {"name": "Food item", "portion": "1 cup", "calories": 300, "protein": 20}
+        ]
+      }
+    ]
+  }
+}
 
-  const response = await callGroq(prompt);
+Include all 7 days in the schedule. Match workout days to ${profile.workoutDays} training days.
+Meal plan should hit the calorie and macro targets.`;
+
+  const response = await callGroq(prompt, apiKey);
   
   // Extract JSON from response
   let jsonStr = response;
@@ -124,5 +164,10 @@ Return ONLY a valid JSON object (no markdown, no explanation) with this structur
     jsonStr = jsonMatch[0];
   }
   
-  return JSON.parse(jsonStr);
+  try {
+    return JSON.parse(jsonStr);
+  } catch (e) {
+    console.error('Failed to parse JSON:', jsonStr);
+    throw new Error('Failed to parse AI response');
+  }
 }
