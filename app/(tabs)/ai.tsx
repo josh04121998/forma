@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { generateWorkout, generateMealPlan } from '@/lib/ai';
 
 type Tab = 'workout' | 'meal';
 
@@ -15,54 +16,45 @@ export default function AICoachScreen() {
   const [workoutGoal, setWorkoutGoal] = useState('muscle');
   const [experience, setExperience] = useState('intermediate');
   const [duration, setDuration] = useState('60');
+  const [equipment, setEquipment] = useState('full');
 
   // Meal form
   const [mealGoal, setMealGoal] = useState('muscle_gain');
   const [calories, setCalories] = useState('2500');
   const [mealsPerDay, setMealsPerDay] = useState('4');
 
-  const generateWorkout = async () => {
+  const handleGenerateWorkout = async () => {
     setLoading(true);
+    setGeneratedWorkout(null);
     try {
-      // TODO: Replace with actual API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setGeneratedWorkout({
-        name: 'Push Day - Strength Focus',
-        estimated_duration: 60,
-        exercises: [
-          { name: 'Bench Press', sets: 4, reps: '6-8', rest_seconds: 180 },
-          { name: 'Overhead Press', sets: 3, reps: '8-10', rest_seconds: 120 },
-          { name: 'Incline Dumbbell Press', sets: 3, reps: '10-12', rest_seconds: 90 },
-          { name: 'Tricep Pushdown', sets: 3, reps: '12-15', rest_seconds: 60 },
-          { name: 'Lateral Raises', sets: 3, reps: '15-20', rest_seconds: 60 },
-        ],
+      const workout = await generateWorkout({
+        goal: workoutGoal,
+        experience,
+        duration: parseInt(duration),
+        equipment: equipment === 'full' ? 'full gym' : equipment === 'home' ? 'dumbbells only' : 'bodyweight only',
       });
+      setGeneratedWorkout(workout);
     } catch (error) {
       console.error(error);
+      Alert.alert('Error', 'Failed to generate workout. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const generateMealPlan = async () => {
+  const handleGenerateMealPlan = async () => {
     setLoading(true);
+    setGeneratedMeal(null);
     try {
-      // TODO: Replace with actual API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setGeneratedMeal({
-        name: 'Muscle Building Plan',
-        total_calories: 2500,
-        total_protein: 200,
-        meals: [
-          { name: 'Breakfast', foods: [{ name: 'Oatmeal with protein', calories: 450 }] },
-          { name: 'Lunch', foods: [{ name: 'Chicken & rice bowl', calories: 650 }] },
-          { name: 'Snack', foods: [{ name: 'Greek yogurt & fruit', calories: 300 }] },
-          { name: 'Dinner', foods: [{ name: 'Salmon with vegetables', calories: 600 }] },
-          { name: 'Evening', foods: [{ name: 'Casein shake', calories: 500 }] },
-        ],
+      const mealPlan = await generateMealPlan({
+        goal: mealGoal,
+        calories: parseInt(calories),
+        mealsPerDay: parseInt(mealsPerDay),
       });
+      setGeneratedMeal(mealPlan);
     } catch (error) {
       console.error(error);
+      Alert.alert('Error', 'Failed to generate meal plan. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -130,6 +122,27 @@ export default function AICoachScreen() {
             </View>
 
             <View style={styles.field}>
+              <Text style={styles.label}>Equipment</Text>
+              <View style={styles.optionRow}>
+                {[
+                  { key: 'full', label: 'Full Gym' },
+                  { key: 'home', label: 'Home' },
+                  { key: 'none', label: 'Bodyweight' },
+                ].map((e) => (
+                  <TouchableOpacity
+                    key={e.key}
+                    style={[styles.option, equipment === e.key && styles.optionActive]}
+                    onPress={() => setEquipment(e.key)}
+                  >
+                    <Text style={[styles.optionText, equipment === e.key && styles.optionTextActive]}>
+                      {e.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.field}>
               <Text style={styles.label}>Duration (minutes)</Text>
               <TextInput
                 style={styles.input}
@@ -142,7 +155,7 @@ export default function AICoachScreen() {
 
             <TouchableOpacity
               style={styles.generateButton}
-              onPress={generateWorkout}
+              onPress={handleGenerateWorkout}
               disabled={loading}
             >
               {loading ? (
@@ -159,12 +172,13 @@ export default function AICoachScreen() {
               <View style={styles.result}>
                 <Text style={styles.resultTitle}>{generatedWorkout.name}</Text>
                 <Text style={styles.resultMeta}>~{generatedWorkout.estimated_duration} min</Text>
-                {generatedWorkout.exercises.map((ex: any, i: number) => (
+                {generatedWorkout.exercises?.map((ex: any, i: number) => (
                   <View key={i} style={styles.exercise}>
                     <Text style={styles.exerciseName}>{ex.name}</Text>
                     <Text style={styles.exerciseMeta}>
                       {ex.sets} sets × {ex.reps} • {ex.rest_seconds}s rest
                     </Text>
+                    {ex.notes && <Text style={styles.exerciseNotes}>{ex.notes}</Text>}
                   </View>
                 ))}
                 <TouchableOpacity style={styles.useButton}>
@@ -226,7 +240,7 @@ export default function AICoachScreen() {
 
             <TouchableOpacity
               style={styles.generateButton}
-              onPress={generateMealPlan}
+              onPress={handleGenerateMealPlan}
               disabled={loading}
             >
               {loading ? (
@@ -245,12 +259,12 @@ export default function AICoachScreen() {
                 <Text style={styles.resultMeta}>
                   {generatedMeal.total_calories} cal • {generatedMeal.total_protein}g protein
                 </Text>
-                {generatedMeal.meals.map((meal: any, i: number) => (
+                {generatedMeal.meals?.map((meal: any, i: number) => (
                   <View key={i} style={styles.exercise}>
                     <Text style={styles.exerciseName}>{meal.name}</Text>
-                    {meal.foods.map((food: any, j: number) => (
+                    {meal.foods?.map((food: any, j: number) => (
                       <Text key={j} style={styles.exerciseMeta}>
-                        {food.name} - {food.calories} cal
+                        {food.name} ({food.portion}) - {food.calories} cal
                       </Text>
                     ))}
                   </View>
@@ -262,6 +276,8 @@ export default function AICoachScreen() {
             )}
           </View>
         )}
+
+        <View style={{ height: 100 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -333,7 +349,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#1c1c1e',
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     borderRadius: 10,
     alignItems: 'center',
   },
@@ -342,7 +358,7 @@ const styles = StyleSheet.create({
   },
   optionText: {
     color: '#888',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '500',
   },
   optionTextActive: {
@@ -399,6 +415,12 @@ const styles = StyleSheet.create({
   exerciseMeta: {
     fontSize: 13,
     color: '#888',
+    marginTop: 4,
+  },
+  exerciseNotes: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
     marginTop: 4,
   },
   useButton: {
