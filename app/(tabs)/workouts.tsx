@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -21,6 +21,9 @@ export default function WorkoutsScreen() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [workoutSets, setWorkoutSets] = useState<Record<string, LocalWorkoutSet[]>>({});
   const [loading, setLoading] = useState(true);
+  
+  // Template detail modal
+  const [selectedTemplate, setSelectedTemplate] = useState<WorkoutTemplate | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -124,7 +127,7 @@ export default function WorkoutsScreen() {
           <TouchableOpacity
             key={template.id}
             style={styles.templateCard}
-            onPress={() => router.push(`/workout/start?templateId=${template.id}`)}
+            onPress={() => setSelectedTemplate(template)}
             onLongPress={() => handleDeleteTemplate(template)}
           >
             <View style={styles.templateHeader}>
@@ -148,14 +151,14 @@ export default function WorkoutsScreen() {
             </View>
             
             <View style={styles.exerciseList}>
-              {template.exercises.slice(0, 4).map((ex, i) => (
+              {template.exercises.slice(0, 3).map((ex, i) => (
                 <Text key={ex.id} style={styles.exerciseItem}>
-                  • {ex.name} ({ex.targetSets}×{ex.targetReps})
+                  • {ex.name}
                 </Text>
               ))}
-              {template.exercises.length > 4 && (
+              {template.exercises.length > 3 && (
                 <Text style={styles.exerciseMore}>
-                  +{template.exercises.length - 4} more
+                  +{template.exercises.length - 3} more • Tap to view
                 </Text>
               )}
             </View>
@@ -262,6 +265,78 @@ export default function WorkoutsScreen() {
         {tab === 'templates' ? renderTemplates() : renderHistory()}
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Template Detail Modal */}
+      <Modal
+        visible={!!selectedTemplate}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setSelectedTemplate(null)}>
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>{selectedTemplate?.name}</Text>
+            <TouchableOpacity
+              onPress={() => {
+                if (selectedTemplate) {
+                  setSelectedTemplate(null);
+                  router.push(`/workout/start?templateId=${selectedTemplate.id}`);
+                }
+              }}
+            >
+              <Text style={styles.modalStart}>Start</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            <Text style={styles.modalSectionTitle}>
+              {selectedTemplate?.exercises.length} Exercises
+            </Text>
+
+            {selectedTemplate?.exercises.map((ex, index) => (
+              <View key={ex.id} style={styles.detailExercise}>
+                <View style={styles.detailNumber}>
+                  <Text style={styles.detailNumberText}>{index + 1}</Text>
+                </View>
+                <View style={styles.detailInfo}>
+                  <Text style={styles.detailName}>{ex.name}</Text>
+                  <Text style={styles.detailMeta}>
+                    {ex.targetSets} sets × {ex.targetReps} reps
+                  </Text>
+                </View>
+              </View>
+            ))}
+
+            <TouchableOpacity
+              style={styles.detailStartButton}
+              onPress={() => {
+                if (selectedTemplate) {
+                  setSelectedTemplate(null);
+                  router.push(`/workout/start?templateId=${selectedTemplate.id}`);
+                }
+              }}
+            >
+              <Ionicons name="play" size={20} color="#fff" />
+              <Text style={styles.detailStartText}>Start Workout</Text>
+            </TouchableOpacity>
+
+            {!selectedTemplate?.isDefault && (
+              <TouchableOpacity
+                style={styles.detailEditButton}
+                onPress={() => {
+                  // TODO: Edit template
+                  Alert.alert('Coming Soon', 'Template editing will be available soon');
+                }}
+              >
+                <Ionicons name="pencil" size={18} color="#007AFF" />
+                <Text style={styles.detailEditText}>Edit Template</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -393,8 +468,8 @@ const styles = StyleSheet.create({
   },
   exerciseMore: {
     fontSize: 14,
-    color: '#666',
-    fontStyle: 'italic',
+    color: '#007AFF',
+    marginTop: 4,
   },
   historyCard: {
     backgroundColor: '#1c1c1e',
@@ -455,5 +530,99 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     fontStyle: 'italic',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1c1c1e',
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  modalStart: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#30d158',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  modalSectionTitle: {
+    fontSize: 15,
+    color: '#888',
+    marginBottom: 16,
+  },
+  detailExercise: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1c1c1e',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+    gap: 12,
+  },
+  detailNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#007AFF20',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailNumberText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
+  },
+  detailInfo: {
+    flex: 1,
+  },
+  detailName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  detailMeta: {
+    fontSize: 14,
+    color: '#888',
+    marginTop: 2,
+  },
+  detailStartButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#30d158',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 24,
+  },
+  detailStartText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  detailEditButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 16,
+    marginTop: 8,
+  },
+  detailEditText: {
+    fontSize: 15,
+    color: '#007AFF',
   },
 });

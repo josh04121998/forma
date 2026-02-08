@@ -72,6 +72,9 @@ export interface LocalProfile {
   equipment?: string;
   injuries?: string;
   onboardingComplete: boolean;
+  // Unit preferences
+  weightUnit: 'kg' | 'lbs';
+  heightUnit: 'cm' | 'ft';
 }
 
 export interface LocalProgram {
@@ -319,11 +322,16 @@ export async function deleteWorkoutSet(id: string): Promise<void> {
 // Profile
 // ============================================
 export async function getProfile(): Promise<LocalProfile> {
+  const defaults: LocalProfile = { 
+    onboardingComplete: false,
+    weightUnit: 'kg',
+    heightUnit: 'cm',
+  };
   try {
     const data = await AsyncStorage.getItem(KEYS.PROFILE);
-    return data ? JSON.parse(data) : { onboardingComplete: false };
+    return data ? { ...defaults, ...JSON.parse(data) } : defaults;
   } catch {
-    return { onboardingComplete: false };
+    return defaults;
   }
 }
 

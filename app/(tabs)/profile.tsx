@@ -1,21 +1,22 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '@/lib/auth';
-import { getProfile, updateProfile, getWorkoutStats, clearAllData } from '@/lib/storage';
+import { getProfile, updateProfile, getWorkoutStats, clearAllData, LocalProfile } from '@/lib/storage';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, signOut, syncToCloud, syncing } = useAuth();
   const [stats, setStats] = useState({ totalWorkouts: 0, totalSets: 0 });
-  const [profile, setProfile] = useState({
-    name: '',
-    age: '',
-    height: '',
-    weight: '',
+  const [profile, setProfile] = useState<Partial<LocalProfile>>({
+    age: undefined,
+    heightCm: undefined,
+    weightKg: undefined,
+    weightUnit: 'kg',
+    heightUnit: 'cm',
   });
 
   const loadData = useCallback(async () => {
@@ -24,12 +25,7 @@ export default function ProfileScreen() {
       getWorkoutStats(),
     ]);
     
-    setProfile({
-      name: '',
-      age: localProfile.age?.toString() || '',
-      height: localProfile.heightCm?.toString() || '',
-      weight: localProfile.weightKg?.toString() || '',
-    });
+    setProfile(localProfile);
     setStats(workoutStats);
   }, []);
 
@@ -40,11 +36,7 @@ export default function ProfileScreen() {
   );
 
   const handleSave = async () => {
-    await updateProfile({
-      age: profile.age ? parseInt(profile.age) : undefined,
-      heightCm: profile.height ? parseInt(profile.height) : undefined,
-      weightKg: profile.weight ? parseInt(profile.weight) : undefined,
-    });
+    await updateProfile(profile);
     Alert.alert('Saved', 'Profile updated');
   };
 
@@ -76,6 +68,34 @@ export default function ProfileScreen() {
         },
       ]
     );
+  };
+
+  const displayWeight = (kg?: number) => {
+    if (!kg) return '';
+    if (profile.weightUnit === 'lbs') {
+      return Math.round(kg * 2.20462).toString();
+    }
+    return kg.toString();
+  };
+
+  const parseWeight = (value: string) => {
+    const num = parseFloat(value);
+    if (isNaN(num)) return undefined;
+    if (profile.weightUnit === 'lbs') {
+      return Math.round(num / 2.20462);
+    }
+    return num;
+  };
+
+  const displayHeight = (cm?: number) => {
+    if (!cm) return '';
+    if (profile.heightUnit === 'ft') {
+      const inches = cm / 2.54;
+      const feet = Math.floor(inches / 12);
+      const remainingInches = Math.round(inches % 12);
+      return `${feet}'${remainingInches}"`;
+    }
+    return cm.toString();
   };
 
   return (
@@ -130,7 +150,56 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Profile Form */}
+        {/* Unit Preferences */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Units</Text>
+          
+          <View style={styles.unitRow}>
+            <Text style={styles.unitLabel}>Weight</Text>
+            <View style={styles.unitOptions}>
+              <TouchableOpacity
+                style={[styles.unitOption, profile.weightUnit === 'kg' && styles.unitOptionActive]}
+                onPress={() => setProfile({ ...profile, weightUnit: 'kg' })}
+              >
+                <Text style={[styles.unitOptionText, profile.weightUnit === 'kg' && styles.unitOptionTextActive]}>
+                  Kg
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.unitOption, profile.weightUnit === 'lbs' && styles.unitOptionActive]}
+                onPress={() => setProfile({ ...profile, weightUnit: 'lbs' })}
+              >
+                <Text style={[styles.unitOptionText, profile.weightUnit === 'lbs' && styles.unitOptionTextActive]}>
+                  Lbs
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.unitRow}>
+            <Text style={styles.unitLabel}>Height</Text>
+            <View style={styles.unitOptions}>
+              <TouchableOpacity
+                style={[styles.unitOption, profile.heightUnit === 'cm' && styles.unitOptionActive]}
+                onPress={() => setProfile({ ...profile, heightUnit: 'cm' })}
+              >
+                <Text style={[styles.unitOptionText, profile.heightUnit === 'cm' && styles.unitOptionTextActive]}>
+                  Cm
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.unitOption, profile.heightUnit === 'ft' && styles.unitOptionActive]}
+                onPress={() => setProfile({ ...profile, heightUnit: 'ft' })}
+              >
+                <Text style={[styles.unitOptionText, profile.heightUnit === 'ft' && styles.unitOptionTextActive]}>
+                  Ft/In
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* Body Stats */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Your Stats</Text>
           
@@ -140,31 +209,31 @@ export default function ProfileScreen() {
                 <Text style={styles.label}>Age</Text>
                 <TextInput
                   style={styles.input}
-                  value={profile.age}
-                  onChangeText={(v) => setProfile({ ...profile, age: v })}
+                  value={profile.age?.toString() || ''}
+                  onChangeText={(v) => setProfile({ ...profile, age: parseInt(v) || undefined })}
                   placeholder="25"
                   placeholderTextColor="#666"
                   keyboardType="numeric"
                 />
               </View>
               <View style={[styles.field, { flex: 1 }]}>
-                <Text style={styles.label}>Height (cm)</Text>
+                <Text style={styles.label}>Height ({profile.heightUnit})</Text>
                 <TextInput
                   style={styles.input}
-                  value={profile.height}
-                  onChangeText={(v) => setProfile({ ...profile, height: v })}
-                  placeholder="175"
+                  value={displayHeight(profile.heightCm)}
+                  onChangeText={(v) => setProfile({ ...profile, heightCm: parseInt(v) || undefined })}
+                  placeholder={profile.heightUnit === 'cm' ? '175' : "5'10\""}
                   placeholderTextColor="#666"
-                  keyboardType="numeric"
+                  keyboardType={profile.heightUnit === 'cm' ? 'numeric' : 'default'}
                 />
               </View>
               <View style={[styles.field, { flex: 1 }]}>
-                <Text style={styles.label}>Weight (kg)</Text>
+                <Text style={styles.label}>Weight ({profile.weightUnit})</Text>
                 <TextInput
                   style={styles.input}
-                  value={profile.weight}
-                  onChangeText={(v) => setProfile({ ...profile, weight: v })}
-                  placeholder="75"
+                  value={displayWeight(profile.weightKg)}
+                  onChangeText={(v) => setProfile({ ...profile, weightKg: parseWeight(v) })}
+                  placeholder={profile.weightUnit === 'kg' ? '75' : '165'}
                   placeholderTextColor="#666"
                   keyboardType="numeric"
                 />
@@ -323,6 +392,40 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#fff',
     marginBottom: 12,
+  },
+  unitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#1c1c1e',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+  },
+  unitLabel: {
+    fontSize: 16,
+    color: '#fff',
+  },
+  unitOptions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  unitOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#2c2c2e',
+  },
+  unitOptionActive: {
+    backgroundColor: '#007AFF',
+  },
+  unitOptionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#888',
+  },
+  unitOptionTextActive: {
+    color: '#fff',
   },
   form: {
     gap: 16,

@@ -1,18 +1,22 @@
 import { useState, useEffect } from 'react';
 import { 
   StyleSheet, View, Text, ScrollView, TouchableOpacity, 
-  TextInput, Alert, ActivityIndicator 
+  TextInput, Alert, ActivityIndicator, Modal, FlatList
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { 
-  getTemplate, createWorkout, addWorkoutSet, 
+  getTemplate, createWorkout, addWorkoutSet, getProfile,
   WorkoutTemplate, TemplateExercise 
 } from '@/lib/storage';
+import { getExercises, filterExercises, getMuscleGroups, Exercise } from '@/lib/exercises';
 
 interface ExerciseLog {
-  templateExercise: TemplateExercise;
+  id: string;
+  name: string;
+  targetSets: number;
+  targetReps: string;
   sets: SetLog[];
 }
 
@@ -30,12 +34,29 @@ export default function StartWorkoutScreen() {
   const [exercises, setExercises] = useState<ExerciseLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [useKg, setUseKg] = useState(true);
+  
+  // Exercise picker state
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerMode, setPickerMode] = useState<'add' | 'replace'>('add');
+  const [replaceIndex, setReplaceIndex] = useState<number | null>(null);
+  const [availableExercises, setAvailableExercises] = useState<Exercise[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
 
   useEffect(() => {
-    loadTemplate();
+    loadData();
   }, [templateId]);
 
-  const loadTemplate = async () => {
+  const loadData = async () => {
+    // Load user preferences
+    const profile = await getProfile();
+    // Default to kg, can be changed in profile
+    
+    // Load exercises for picker
+    const exList = await getExercises();
+    setAvailableExercises(exList);
+
     if (!templateId) {
       Alert.alert('Error', 'No workout selected');
       router.back();
@@ -51,9 +72,11 @@ export default function StartWorkoutScreen() {
 
     setTemplate(data);
     
-    // Initialize exercise logs with empty sets based on template
     const logs: ExerciseLog[] = data.exercises.map(ex => ({
-      templateExercise: ex,
+      id: ex.id,
+      name: ex.name,
+      targetSets: ex.targetSets,
+      targetReps: ex.targetReps,
       sets: Array.from({ length: ex.targetSets }, (_, i) => ({
         id: `${ex.id}-${i}`,
         reps: '',
@@ -82,7 +105,7 @@ export default function StartWorkoutScreen() {
     const newExercises = [...exercises];
     const exercise = newExercises[exerciseIndex];
     exercise.sets.push({
-      id: `${exercise.templateExercise.id}-${exercise.sets.length}`,
+      id: `${exercise.id}-${exercise.sets.length}`,
       reps: '',
       weight: '',
       completed: false,
@@ -94,6 +117,64 @@ export default function StartWorkoutScreen() {
     const newExercises = [...exercises];
     newExercises[exerciseIndex].sets.splice(setIndex, 1);
     setExercises(newExercises);
+  };
+
+  const openAddExercise = () => {
+    setPickerMode('add');
+    setReplaceIndex(null);
+    setShowPicker(true);
+  };
+
+  const openReplaceExercise = (index: number) => {
+    setPickerMode('replace');
+    setReplaceIndex(index);
+    setShowPicker(true);
+  };
+
+  const selectExercise = (exercise: Exercise) => {
+    const newExercise: ExerciseLog = {
+      id: Date.now().toString(),
+      name: exercise.name,
+      targetSets: 3,
+      targetReps: '8-12',
+      sets: Array.from({ length: 3 }, (_, i) => ({
+        id: `${Date.now()}-${i}`,
+        reps: '',
+        weight: '',
+        completed: false,
+      })),
+    };
+
+    if (pickerMode === 'replace' && replaceIndex !== null) {
+      const newExercises = [...exercises];
+      newExercises[replaceIndex] = newExercise;
+      setExercises(newExercises);
+    } else {
+      setExercises([...exercises, newExercise]);
+    }
+
+    setShowPicker(false);
+    setSearchQuery('');
+    setSelectedMuscle(null);
+  };
+
+  const removeExercise = (index: number) => {
+    Alert.alert(
+      'Remove Exercise',
+      `Remove ${exercises[index].name}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Remove', 
+          style: 'destructive',
+          onPress: () => {
+            const newExercises = [...exercises];
+            newExercises.splice(index, 1);
+            setExercises(newExercises);
+          }
+        },
+      ]
+    );
   };
 
   const getCompletedSetsCount = () => {
@@ -110,14 +191,8 @@ export default function StartWorkoutScreen() {
       return;
     }
 
-    Alert.alert(
-      'Finish Workout?',
-      `You completed ${completedSets} sets. Save this workout?`,
-      [
-        { text: 'Keep Training', style: 'cancel' },
-        { text: 'Finish', onPress: saveWorkout },
-      ]
-    );
+    // Save directly without confirmation
+    await saveWorkout();
   };
 
   const saveWorkout = async () => {
@@ -131,14 +206,13 @@ export default function StartWorkoutScreen() {
         completedAt: new Date().toISOString(),
       });
 
-      // Save all completed sets
       for (const exercise of exercises) {
         const completedSets = exercise.sets.filter(s => s.completed);
         for (let i = 0; i < completedSets.length; i++) {
           const set = completedSets[i];
           await addWorkoutSet({
             workoutId: workout.id,
-            exerciseName: exercise.templateExercise.name,
+            exerciseName: exercise.name,
             setNumber: i + 1,
             reps: set.reps ? parseInt(set.reps) : undefined,
             weightKg: set.weight ? parseFloat(set.weight) : undefined,
@@ -157,15 +231,26 @@ export default function StartWorkoutScreen() {
   };
 
   const cancelWorkout = () => {
-    Alert.alert(
-      'Cancel Workout?',
-      'Your progress will be lost.',
-      [
-        { text: 'Keep Training', style: 'cancel' },
-        { text: 'Cancel', style: 'destructive', onPress: () => router.back() },
-      ]
-    );
+    const completedSets = getCompletedSetsCount();
+    if (completedSets > 0) {
+      Alert.alert(
+        'Discard Workout?',
+        `You have ${completedSets} completed sets. Discard?`,
+        [
+          { text: 'Keep Training', style: 'cancel' },
+          { text: 'Discard', style: 'destructive', onPress: () => router.back() },
+        ]
+      );
+    } else {
+      router.back();
+    }
   };
+
+  const filteredExercises = filterExercises(
+    availableExercises, 
+    selectedMuscle || undefined, 
+    searchQuery || undefined
+  );
 
   if (loading) {
     return (
@@ -200,18 +285,34 @@ export default function StartWorkoutScreen() {
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {exercises.map((exercise, exerciseIndex) => (
-          <View key={exercise.templateExercise.id} style={styles.exerciseCard}>
+          <View key={exercise.id} style={styles.exerciseCard}>
             <View style={styles.exerciseHeader}>
-              <Text style={styles.exerciseName}>{exercise.templateExercise.name}</Text>
+              <View style={styles.exerciseTitleRow}>
+                <Text style={styles.exerciseName}>{exercise.name}</Text>
+                <View style={styles.exerciseActions}>
+                  <TouchableOpacity 
+                    onPress={() => openReplaceExercise(exerciseIndex)}
+                    style={styles.exerciseActionBtn}
+                  >
+                    <Ionicons name="swap-horizontal" size={18} color="#007AFF" />
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    onPress={() => removeExercise(exerciseIndex)}
+                    style={styles.exerciseActionBtn}
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#ff453a" />
+                  </TouchableOpacity>
+                </View>
+              </View>
               <Text style={styles.targetText}>
-                Target: {exercise.templateExercise.targetSets} × {exercise.templateExercise.targetReps}
+                Target: {exercise.targetSets} × {exercise.targetReps}
               </Text>
             </View>
 
             {/* Sets Header */}
             <View style={styles.setsHeader}>
               <Text style={styles.setHeaderText}>Set</Text>
-              <Text style={styles.setHeaderText}>Kg</Text>
+              <Text style={styles.setHeaderText}>{useKg ? 'Kg' : 'Lbs'}</Text>
               <Text style={styles.setHeaderText}>Reps</Text>
               <Text style={styles.setHeaderText}></Text>
             </View>
@@ -227,7 +328,6 @@ export default function StartWorkoutScreen() {
                   placeholder="-"
                   placeholderTextColor="#666"
                   keyboardType="decimal-pad"
-                  editable={!set.completed}
                 />
                 <TextInput
                   style={[styles.setInput, set.completed && styles.setInputCompleted]}
@@ -236,7 +336,6 @@ export default function StartWorkoutScreen() {
                   placeholder="-"
                   placeholderTextColor="#666"
                   keyboardType="number-pad"
-                  editable={!set.completed}
                 />
                 <TouchableOpacity
                   style={[styles.checkButton, set.completed && styles.checkButtonActive]}
@@ -273,8 +372,90 @@ export default function StartWorkoutScreen() {
           </View>
         ))}
 
+        {/* Add Exercise Button */}
+        <TouchableOpacity style={styles.addExerciseButton} onPress={openAddExercise}>
+          <Ionicons name="add" size={24} color="#007AFF" />
+          <Text style={styles.addExerciseText}>Add Exercise</Text>
+        </TouchableOpacity>
+
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Exercise Picker Modal */}
+      <Modal visible={showPicker} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => {
+              setShowPicker(false);
+              setSearchQuery('');
+              setSelectedMuscle(null);
+            }}>
+              <Text style={styles.modalCancel}>Cancel</Text>
+            </TouchableOpacity>
+            <Text style={styles.modalTitle}>
+              {pickerMode === 'replace' ? 'Replace Exercise' : 'Add Exercise'}
+            </Text>
+            <View style={{ width: 60 }} />
+          </View>
+
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color="#888" />
+            <TextInput
+              style={styles.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Search exercises..."
+              placeholderTextColor="#666"
+              autoFocus
+            />
+          </View>
+
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            style={styles.filterScroll}
+            contentContainerStyle={styles.filterContainer}
+          >
+            <TouchableOpacity
+              style={[styles.filterChip, !selectedMuscle && styles.filterChipActive]}
+              onPress={() => setSelectedMuscle(null)}
+            >
+              <Text style={[styles.filterText, !selectedMuscle && styles.filterTextActive]}>All</Text>
+            </TouchableOpacity>
+            {getMuscleGroups().map(muscle => (
+              <TouchableOpacity
+                key={muscle}
+                style={[styles.filterChip, selectedMuscle === muscle && styles.filterChipActive]}
+                onPress={() => setSelectedMuscle(muscle)}
+              >
+                <Text style={[styles.filterText, selectedMuscle === muscle && styles.filterTextActive]}>
+                  {muscle.charAt(0).toUpperCase() + muscle.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          <FlatList
+            data={filteredExercises}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.exerciseOption}
+                onPress={() => selectExercise(item)}
+              >
+                <View>
+                  <Text style={styles.exerciseOptionName}>{item.name}</Text>
+                  <Text style={styles.exerciseOptionMeta}>
+                    {item.muscle_group} • {item.equipment || 'bodyweight'}
+                  </Text>
+                </View>
+                <Ionicons name="add-circle-outline" size={24} color="#007AFF" />
+              </TouchableOpacity>
+            )}
+            contentContainerStyle={styles.listContent}
+          />
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -333,10 +514,23 @@ const styles = StyleSheet.create({
   exerciseHeader: {
     marginBottom: 16,
   },
+  exerciseTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   exerciseName: {
     fontSize: 18,
     fontWeight: '600',
     color: '#fff',
+    flex: 1,
+  },
+  exerciseActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  exerciseActionBtn: {
+    padding: 4,
   },
   targetText: {
     fontSize: 14,
@@ -411,5 +605,106 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#007AFF',
     fontWeight: '500',
+  },
+  addExerciseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#1c1c1e',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#333',
+    borderStyle: 'dashed',
+  },
+  addExerciseText: {
+    fontSize: 16,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1c1c1e',
+  },
+  modalCancel: {
+    fontSize: 17,
+    color: '#007AFF',
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1c1c1e',
+    borderRadius: 10,
+    margin: 16,
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    color: '#fff',
+    fontSize: 16,
+  },
+  filterScroll: {
+    maxHeight: 40,
+  },
+  filterContainer: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: '#1c1c1e',
+  },
+  filterChipActive: {
+    backgroundColor: '#007AFF',
+  },
+  filterText: {
+    fontSize: 14,
+    color: '#888',
+    fontWeight: '500',
+  },
+  filterTextActive: {
+    color: '#fff',
+  },
+  listContent: {
+    padding: 16,
+  },
+  exerciseOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: '#1c1c1e',
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  exerciseOptionName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#fff',
+  },
+  exerciseOptionMeta: {
+    fontSize: 13,
+    color: '#888',
+    marginTop: 2,
   },
 });
