@@ -77,6 +77,13 @@ function RootLayoutNav() {
               presentation: 'modal',
             }} 
           />
+          <Stack.Screen 
+            name="settings/reminders" 
+            options={{ 
+              headerShown: false,
+              presentation: 'modal',
+            }} 
+          />
         </Stack>
       </ThemeProvider>
     </AuthProvider>

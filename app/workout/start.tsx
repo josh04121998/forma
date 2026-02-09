@@ -8,9 +8,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { 
   getTemplate, createWorkout, addWorkoutSet, getProfile,
+  getLastWorkoutForExercise, ExerciseHistory,
   WorkoutTemplate, TemplateExercise 
 } from '@/lib/storage';
 import { getExercises, filterExercises, getMuscleGroups, Exercise } from '@/lib/exercises';
+import RestTimer, { REST_PRESETS } from '@/components/RestTimer';
+import PlateCalculator from '@/components/PlateCalculator';
+import OneRMCalculator from '@/components/OneRMCalculator';
 
 interface ExerciseLog {
   id: string;
@@ -18,6 +22,9 @@ interface ExerciseLog {
   targetSets: number;
   targetReps: string;
   sets: SetLog[];
+  lastWorkout?: ExerciseHistory | null;
+  isSuperset?: boolean;
+  supersetWith?: string;
 }
 
 interface SetLog {
@@ -36,6 +43,16 @@ export default function StartWorkoutScreen() {
   const [saving, setSaving] = useState(false);
   const [useKg, setUseKg] = useState(true);
   
+  // Rest timer state
+  const [showRestTimer, setShowRestTimer] = useState(false);
+  const [restDuration, setRestDuration] = useState(90);
+  const [autoRestTimer, setAutoRestTimer] = useState(true);
+  
+  // Tools
+  const [showPlateCalc, setShowPlateCalc] = useState(false);
+  const [showOneRMCalc, setShowOneRMCalc] = useState(false);
+  const [plateCalcWeight, setPlateCalcWeight] = useState(60);
+  
   // Exercise picker state
   const [showPicker, setShowPicker] = useState(false);
   const [pickerMode, setPickerMode] = useState<'add' | 'replace'>('add');
@@ -43,17 +60,18 @@ export default function StartWorkoutScreen() {
   const [availableExercises, setAvailableExercises] = useState<Exercise[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
+  
+  // Settings modal
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     loadData();
   }, [templateId]);
 
   const loadData = async () => {
-    // Load user preferences
     const profile = await getProfile();
-    // Default to kg, can be changed in profile
+    setUseKg(profile.weightUnit !== 'lbs');
     
-    // Load exercises for picker
     const exList = await getExercises();
     setAvailableExercises(exList);
 
@@ -72,18 +90,25 @@ export default function StartWorkoutScreen() {
 
     setTemplate(data);
     
-    const logs: ExerciseLog[] = data.exercises.map(ex => ({
-      id: ex.id,
-      name: ex.name,
-      targetSets: ex.targetSets,
-      targetReps: ex.targetReps,
-      sets: Array.from({ length: ex.targetSets }, (_, i) => ({
-        id: `${ex.id}-${i}`,
-        reps: '',
-        weight: '',
-        completed: false,
-      })),
-    }));
+    // Load exercises with previous workout data
+    const logs: ExerciseLog[] = await Promise.all(
+      data.exercises.map(async (ex) => {
+        const lastWorkout = await getLastWorkoutForExercise(ex.name);
+        return {
+          id: ex.id,
+          name: ex.name,
+          targetSets: ex.targetSets,
+          targetReps: ex.targetReps,
+          lastWorkout,
+          sets: Array.from({ length: ex.targetSets }, (_, i) => ({
+            id: `${ex.id}-${i}`,
+            reps: '',
+            weight: '',
+            completed: false,
+          })),
+        };
+      })
+    );
     setExercises(logs);
     setLoading(false);
   };
@@ -96,9 +121,23 @@ export default function StartWorkoutScreen() {
 
   const toggleSetComplete = (exerciseIndex: number, setIndex: number) => {
     const newExercises = [...exercises];
-    newExercises[exerciseIndex].sets[setIndex].completed = 
-      !newExercises[exerciseIndex].sets[setIndex].completed;
+    const wasCompleted = newExercises[exerciseIndex].sets[setIndex].completed;
+    newExercises[exerciseIndex].sets[setIndex].completed = !wasCompleted;
     setExercises(newExercises);
+    
+    // Show rest timer when completing a set (not uncompleting)
+    if (!wasCompleted && autoRestTimer) {
+      setShowRestTimer(true);
+    }
+  };
+
+  const copyLastSet = (exerciseIndex: number, setIndex: number) => {
+    const exercise = exercises[exerciseIndex];
+    if (exercise.lastWorkout && exercise.lastWorkout.sets[setIndex]) {
+      const lastSet = exercise.lastWorkout.sets[setIndex];
+      updateSet(exerciseIndex, setIndex, 'weight', lastSet.weightKg.toString());
+      updateSet(exerciseIndex, setIndex, 'reps', lastSet.reps.toString());
+    }
   };
 
   const addSet = (exerciseIndex: number) => {
@@ -131,12 +170,14 @@ export default function StartWorkoutScreen() {
     setShowPicker(true);
   };
 
-  const selectExercise = (exercise: Exercise) => {
+  const selectExercise = async (exercise: Exercise) => {
+    const lastWorkout = await getLastWorkoutForExercise(exercise.name);
     const newExercise: ExerciseLog = {
       id: Date.now().toString(),
       name: exercise.name,
       targetSets: 3,
       targetReps: '8-12',
+      lastWorkout,
       sets: Array.from({ length: 3 }, (_, i) => ({
         id: `${Date.now()}-${i}`,
         reps: '',
@@ -191,7 +232,6 @@ export default function StartWorkoutScreen() {
       return;
     }
 
-    // Save directly without confirmation
     await saveWorkout();
   };
 
@@ -283,6 +323,44 @@ export default function StartWorkoutScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Tools Bar */}
+      <View style={styles.toolsBar}>
+        <TouchableOpacity 
+          style={styles.toolButton}
+          onPress={() => setShowSettings(true)}
+        >
+          <Ionicons name="timer-outline" size={18} color="#007AFF" />
+          <Text style={styles.toolButtonText}>{restDuration}s</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.toolButton}
+          onPress={() => setShowPlateCalc(true)}
+        >
+          <Ionicons name="disc-outline" size={18} color="#007AFF" />
+          <Text style={styles.toolButtonText}>Plates</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={styles.toolButton}
+          onPress={() => setShowOneRMCalc(true)}
+        >
+          <Ionicons name="calculator-outline" size={18} color="#007AFF" />
+          <Text style={styles.toolButtonText}>1RM</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.toolButton, autoRestTimer && styles.toolButtonActive]}
+          onPress={() => setAutoRestTimer(!autoRestTimer)}
+        >
+          <Ionicons 
+            name={autoRestTimer ? "notifications" : "notifications-off-outline"} 
+            size={18} 
+            color={autoRestTimer ? "#fff" : "#007AFF"} 
+          />
+        </TouchableOpacity>
+      </View>
+
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {exercises.map((exercise, exerciseIndex) => (
           <View key={exercise.id} style={styles.exerciseCard}>
@@ -304,51 +382,76 @@ export default function StartWorkoutScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
-              <Text style={styles.targetText}>
-                Target: {exercise.targetSets} × {exercise.targetReps}
-              </Text>
+              
+              {/* Previous workout data */}
+              {exercise.lastWorkout && (
+                <View style={styles.previousData}>
+                  <Ionicons name="time-outline" size={14} color="#888" />
+                  <Text style={styles.previousText}>
+                    Last: {exercise.lastWorkout.sets.map(s => 
+                      `${s.weightKg}×${s.reps}`
+                    ).join(', ')}
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Sets Header */}
             <View style={styles.setsHeader}>
               <Text style={styles.setHeaderText}>Set</Text>
+              <Text style={styles.setHeaderText}>Previous</Text>
               <Text style={styles.setHeaderText}>{useKg ? 'Kg' : 'Lbs'}</Text>
               <Text style={styles.setHeaderText}>Reps</Text>
               <Text style={styles.setHeaderText}></Text>
             </View>
 
             {/* Sets */}
-            {exercise.sets.map((set, setIndex) => (
-              <View key={set.id} style={styles.setRow}>
-                <Text style={styles.setNumber}>{setIndex + 1}</Text>
-                <TextInput
-                  style={[styles.setInput, set.completed && styles.setInputCompleted]}
-                  value={set.weight}
-                  onChangeText={(v) => updateSet(exerciseIndex, setIndex, 'weight', v)}
-                  placeholder="-"
-                  placeholderTextColor="#666"
-                  keyboardType="decimal-pad"
-                />
-                <TextInput
-                  style={[styles.setInput, set.completed && styles.setInputCompleted]}
-                  value={set.reps}
-                  onChangeText={(v) => updateSet(exerciseIndex, setIndex, 'reps', v)}
-                  placeholder="-"
-                  placeholderTextColor="#666"
-                  keyboardType="number-pad"
-                />
-                <TouchableOpacity
-                  style={[styles.checkButton, set.completed && styles.checkButtonActive]}
-                  onPress={() => toggleSetComplete(exerciseIndex, setIndex)}
-                >
-                  <Ionicons 
-                    name="checkmark" 
-                    size={18} 
-                    color={set.completed ? '#fff' : '#666'} 
+            {exercise.sets.map((set, setIndex) => {
+              const prevSet = exercise.lastWorkout?.sets[setIndex];
+              return (
+                <View key={set.id} style={styles.setRow}>
+                  <Text style={styles.setNumber}>{setIndex + 1}</Text>
+                  
+                  {/* Previous set - tappable to copy */}
+                  <TouchableOpacity 
+                    style={styles.previousSet}
+                    onPress={() => copyLastSet(exerciseIndex, setIndex)}
+                    disabled={!prevSet}
+                  >
+                    <Text style={styles.previousSetText}>
+                      {prevSet ? `${prevSet.weightKg}×${prevSet.reps}` : '-'}
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <TextInput
+                    style={[styles.setInput, set.completed && styles.setInputCompleted]}
+                    value={set.weight}
+                    onChangeText={(v) => updateSet(exerciseIndex, setIndex, 'weight', v)}
+                    placeholder="-"
+                    placeholderTextColor="#666"
+                    keyboardType="decimal-pad"
                   />
-                </TouchableOpacity>
-              </View>
-            ))}
+                  <TextInput
+                    style={[styles.setInput, set.completed && styles.setInputCompleted]}
+                    value={set.reps}
+                    onChangeText={(v) => updateSet(exerciseIndex, setIndex, 'reps', v)}
+                    placeholder="-"
+                    placeholderTextColor="#666"
+                    keyboardType="number-pad"
+                  />
+                  <TouchableOpacity
+                    style={[styles.checkButton, set.completed && styles.checkButtonActive]}
+                    onPress={() => toggleSetComplete(exerciseIndex, setIndex)}
+                  >
+                    <Ionicons 
+                      name="checkmark" 
+                      size={18} 
+                      color={set.completed ? '#fff' : '#666'} 
+                    />
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
 
             {/* Add/Remove Set */}
             <View style={styles.setActions}>
@@ -380,6 +483,72 @@ export default function StartWorkoutScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      {/* Rest Timer */}
+      <RestTimer
+        visible={showRestTimer}
+        duration={restDuration}
+        onComplete={() => setShowRestTimer(false)}
+        onSkip={() => setShowRestTimer(false)}
+        onAdjust={setRestDuration}
+      />
+
+      {/* Plate Calculator */}
+      <PlateCalculator
+        visible={showPlateCalc}
+        onClose={() => setShowPlateCalc(false)}
+        initialWeight={plateCalcWeight}
+        unit={useKg ? 'kg' : 'lbs'}
+      />
+
+      {/* 1RM Calculator */}
+      <OneRMCalculator
+        visible={showOneRMCalc}
+        onClose={() => setShowOneRMCalc(false)}
+      />
+
+      {/* Settings Modal */}
+      <Modal visible={showSettings} animationType="slide" presentationStyle="pageSheet">
+        <SafeAreaView style={styles.settingsContainer}>
+          <View style={styles.settingsHeader}>
+            <TouchableOpacity onPress={() => setShowSettings(false)}>
+              <Text style={styles.settingsDone}>Done</Text>
+            </TouchableOpacity>
+          </View>
+          
+          <Text style={styles.settingsTitle}>Rest Timer</Text>
+          
+          <View style={styles.restPresets}>
+            {REST_PRESETS.map((preset) => (
+              <TouchableOpacity
+                key={preset.value}
+                style={[
+                  styles.restPreset,
+                  restDuration === preset.value && styles.restPresetActive
+                ]}
+                onPress={() => setRestDuration(preset.value)}
+              >
+                <Text style={[
+                  styles.restPresetText,
+                  restDuration === preset.value && styles.restPresetTextActive
+                ]}>
+                  {preset.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          
+          <View style={styles.settingsRow}>
+            <Text style={styles.settingsLabel}>Auto-start after set</Text>
+            <TouchableOpacity
+              style={[styles.toggle, autoRestTimer && styles.toggleActive]}
+              onPress={() => setAutoRestTimer(!autoRestTimer)}
+            >
+              <View style={[styles.toggleThumb, autoRestTimer && styles.toggleThumbActive]} />
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
 
       {/* Exercise Picker Modal */}
       <Modal visible={showPicker} animationType="slide" presentationStyle="pageSheet">
@@ -501,6 +670,31 @@ const styles = StyleSheet.create({
   finishTextDisabled: {
     opacity: 0.5,
   },
+  toolsBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1c1c1e',
+  },
+  toolButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#1c1c1e',
+    borderRadius: 8,
+  },
+  toolButtonActive: {
+    backgroundColor: '#007AFF',
+  },
+  toolButtonText: {
+    fontSize: 13,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
   scrollView: {
     flex: 1,
     paddingHorizontal: 16,
@@ -512,7 +706,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   exerciseHeader: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   exerciseTitleRow: {
     flexDirection: 'row',
@@ -532,10 +726,15 @@ const styles = StyleSheet.create({
   exerciseActionBtn: {
     padding: 4,
   },
-  targetText: {
-    fontSize: 14,
+  previousData: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
+  previousText: {
+    fontSize: 13,
     color: '#888',
-    marginTop: 4,
   },
   setsHeader: {
     flexDirection: 'row',
@@ -545,30 +744,41 @@ const styles = StyleSheet.create({
   },
   setHeaderText: {
     flex: 1,
-    fontSize: 12,
-    color: '#888',
+    fontSize: 11,
+    color: '#666',
     textAlign: 'center',
   },
   setRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
-    gap: 8,
+    gap: 6,
   },
   setNumber: {
-    width: 32,
-    fontSize: 15,
+    width: 24,
+    fontSize: 14,
     color: '#888',
     textAlign: 'center',
     fontWeight: '600',
+  },
+  previousSet: {
+    flex: 1,
+    backgroundColor: '#2c2c2e',
+    borderRadius: 6,
+    padding: 10,
+    alignItems: 'center',
+  },
+  previousSetText: {
+    fontSize: 12,
+    color: '#666',
   },
   setInput: {
     flex: 1,
     backgroundColor: '#2c2c2e',
     borderRadius: 8,
-    padding: 12,
+    padding: 10,
     color: '#fff',
-    fontSize: 16,
+    fontSize: 15,
     textAlign: 'center',
   },
   setInputCompleted: {
@@ -576,8 +786,8 @@ const styles = StyleSheet.create({
     color: '#30d158',
   },
   checkButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     borderRadius: 8,
     backgroundColor: '#2c2c2e',
     alignItems: 'center',
@@ -623,6 +833,80 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#007AFF',
     fontWeight: '600',
+  },
+  settingsContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+    padding: 16,
+  },
+  settingsHeader: {
+    alignItems: 'flex-end',
+    marginBottom: 24,
+  },
+  settingsDone: {
+    fontSize: 17,
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  settingsTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 20,
+  },
+  restPresets: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 24,
+  },
+  restPreset: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: '#1c1c1e',
+    borderRadius: 10,
+  },
+  restPresetActive: {
+    backgroundColor: '#007AFF',
+  },
+  restPresetText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#888',
+  },
+  restPresetTextActive: {
+    color: '#fff',
+  },
+  settingsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#1c1c1e',
+    borderRadius: 12,
+    padding: 16,
+  },
+  settingsLabel: {
+    fontSize: 16,
+    color: '#fff',
+  },
+  toggle: {
+    width: 50,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#333',
+    padding: 2,
+  },
+  toggleActive: {
+    backgroundColor: '#30d158',
+  },
+  toggleThumb: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#fff',
+  },
+  toggleThumbActive: {
+    transform: [{ translateX: 20 }],
   },
   modalContainer: {
     flex: 1,

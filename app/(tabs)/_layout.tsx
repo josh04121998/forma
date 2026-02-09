@@ -2,30 +2,28 @@ import { Tabs } from 'expo-router';
 import React from 'react';
 import { Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
-import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const tintColor = Colors[colorScheme ?? 'dark'].tint;
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: tintColor,
-        tabBarStyle: Platform.select({
-          ios: { position: 'absolute', backgroundColor: 'transparent' },
-          default: {},
-        }),
-        headerStyle: { backgroundColor: Colors[colorScheme ?? 'dark'].background },
-        headerTintColor: Colors[colorScheme ?? 'dark'].text,
+        tabBarActiveTintColor: '#007AFF',
+        tabBarInactiveTintColor: '#888',
+        tabBarStyle: {
+          backgroundColor: '#000',
+          borderTopColor: '#1c1c1e',
+          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+          paddingTop: 8,
+          height: Platform.OS === 'ios' ? 85 : 65,
+        },
+        headerShown: false,
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Dashboard',
+          title: 'Home',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'stats-chart' : 'stats-chart-outline'} size={24} color={color} />
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -39,11 +37,11 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="meals"
+        name="progress"
         options={{
-          title: 'Meals',
+          title: 'Progress',
           tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'restaurant' : 'restaurant-outline'} size={24} color={color} />
+            <Ionicons name={focused ? 'trending-up' : 'trending-up-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -63,6 +61,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'person' : 'person-outline'} size={24} color={color} />
           ),
+        }}
+      />
+      {/* Hide meals tab for now - can be accessed from AI Coach */}
+      <Tabs.Screen
+        name="meals"
+        options={{
+          href: null,
         }}
       />
     </Tabs>

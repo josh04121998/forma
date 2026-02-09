@@ -246,6 +246,20 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Settings</Text>
+          
+          <TouchableOpacity 
+            style={styles.menuItem}
+            onPress={() => router.push('/settings/reminders')}
+          >
+            <Ionicons name="notifications-outline" size={22} color="#fff" />
+            <Text style={styles.menuText}>Workout Reminders</Text>
+            <Ionicons name="chevron-forward" size={20} color="#666" />
+          </TouchableOpacity>
+        </View>
+
         {/* Actions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>

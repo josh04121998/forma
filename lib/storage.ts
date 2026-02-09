@@ -403,6 +403,69 @@ export async function saveMealPlan(data: Omit<LocalMealPlan, 'id' | 'createdAt'>
 }
 
 // ============================================
+// Exercise History (for previous workout data)
+// ============================================
+export interface ExerciseHistory {
+  date: string;
+  sets: { reps: number; weightKg: number }[];
+}
+
+export async function getExerciseHistory(exerciseName: string): Promise<ExerciseHistory[]> {
+  const workouts = await getWorkouts();
+  const allSets = await getArray<LocalWorkoutSet>(KEYS.WORKOUT_SETS);
+  
+  const history: ExerciseHistory[] = [];
+  
+  for (const workout of workouts) {
+    if (!workout.completedAt) continue;
+    
+    const exerciseSets = allSets
+      .filter(s => s.workoutId === workout.id && s.exerciseName === exerciseName)
+      .sort((a, b) => a.setNumber - b.setNumber)
+      .map(s => ({ reps: s.reps || 0, weightKg: s.weightKg || 0 }));
+    
+    if (exerciseSets.length > 0) {
+      history.push({
+        date: workout.completedAt,
+        sets: exerciseSets,
+      });
+    }
+  }
+  
+  return history.sort((a, b) => 
+    new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+}
+
+export async function getLastWorkoutForExercise(exerciseName: string): Promise<ExerciseHistory | null> {
+  const history = await getExerciseHistory(exerciseName);
+  return history[0] || null;
+}
+
+// Get all exercise PRs
+export async function getExercisePR(exerciseName: string): Promise<{ weight: number; reps: number; date: string } | null> {
+  const history = await getExerciseHistory(exerciseName);
+  
+  let best: { weight: number; reps: number; date: string } | null = null;
+  let best1RM = 0;
+  
+  for (const entry of history) {
+    for (const set of entry.sets) {
+      // Epley formula for estimated 1RM
+      const reps = Math.min(set.reps, 12);
+      const est1RM = set.weightKg * (1 + reps / 30);
+      
+      if (est1RM > best1RM) {
+        best1RM = est1RM;
+        best = { weight: set.weightKg, reps: set.reps, date: entry.date };
+      }
+    }
+  }
+  
+  return best;
+}
+
+// ============================================
 // Stats
 // ============================================
 export async function getWorkoutStats(): Promise<{
