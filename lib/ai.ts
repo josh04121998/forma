@@ -119,6 +119,12 @@ ${profile.dietaryRestrictions?.length ? `- Dietary restrictions: ${profile.dieta
 - TDEE: ${tdee} calories
 - Target calories: ${targetCalories} calories
 
+**Exercise Count Guidelines (STRICT - based on workout duration):**
+- 30 min workouts: 4-5 exercises (compound focus, supersets encouraged)
+- 45 min workouts: 5-6 exercises 
+- 60 min workouts: 6-8 exercises
+- 90 min workouts: 8-10 exercises
+
 Create a comprehensive program. Return ONLY valid JSON (no markdown, no explanation):
 
 {
@@ -154,9 +160,13 @@ Create a comprehensive program. Return ONLY valid JSON (no markdown, no explanat
   }
 }
 
-Include all 7 days in the schedule. Match workout days to ${profile.workoutDays} training days.
-Each workout must be completable in ${profile.workoutDuration} minutes or less (including rest periods).
-Meal plan should hit the calorie and macro targets.`;
+CRITICAL REQUIREMENTS:
+- Include all 7 days in the schedule
+- Match workout days to ${profile.workoutDays} training days
+- Each workout MUST have the appropriate number of exercises for ${profile.workoutDuration} minute sessions (see guidelines above)
+- Each workout must be completable in ${profile.workoutDuration} minutes or less (including rest periods)
+- Meal plan should hit the calorie and macro targets
+- Include variety: compound movements, isolation work, and accessory exercises`;
 
   const response = await callGroq(prompt, apiKey);
   

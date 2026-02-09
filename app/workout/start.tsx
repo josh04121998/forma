@@ -658,6 +658,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerCenter: {
+    flex: 1,
     alignItems: 'center',
   },
   headerTitle: {
