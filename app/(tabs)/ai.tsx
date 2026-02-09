@@ -2,14 +2,18 @@ import { useState } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { generateFullProgram, UserProfile, GeneratedProgram } from '@/lib/ai';
+import { saveProgram, saveMealPlan, createTemplate } from '@/lib/storage';
 import { config } from '@/lib/config';
 
 type Step = 'basics' | 'goals' | 'preferences' | 'generating' | 'results';
 
 export default function AICoachScreen() {
+  const router = useRouter();
   const [step, setStep] = useState<Step>('basics');
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [program, setProgram] = useState<GeneratedProgram | null>(null);
 
   // Form state
@@ -55,6 +59,64 @@ export default function AICoachScreen() {
   const resetForm = () => {
     setStep('basics');
     setProgram(null);
+  };
+
+  const handleSaveProgram = async () => {
+    if (!program) return;
+    
+    setSaving(true);
+    try {
+      // Save workout program
+      await saveProgram({
+        name: program.workoutPlan.name,
+        summary: program.summary,
+        schedule: program.workoutPlan.schedule,
+        durationWeeks: 4,
+        active: true,
+      });
+
+      // Save meal plan
+      await saveMealPlan({
+        name: 'AI Generated Meal Plan',
+        targetCalories: program.calories,
+        targetProtein: program.protein,
+        targetCarbs: program.carbs,
+        targetFat: program.fat,
+        meals: program.mealPlan.meals,
+        active: true,
+      });
+
+      // Create workout templates from the schedule
+      const workoutDays = program.workoutPlan.schedule.filter(
+        (day: any) => day.workout !== 'Rest'
+      );
+      
+      for (const day of workoutDays) {
+        if (day.workout !== 'Rest') {
+          await createTemplate({
+            name: `${day.workout.name} (AI)`,
+            exercises: day.workout.exercises.map((ex: any, i: number) => ({
+              id: `${Date.now()}-${i}`,
+              name: ex.name,
+              targetSets: ex.sets,
+              targetReps: ex.reps,
+              notes: ex.notes,
+            })),
+          });
+        }
+      }
+
+      Alert.alert(
+        'Program Saved! 🎉',
+        'Your workout templates and meal plan have been saved. Check the Workouts tab to start training!',
+        [{ text: 'Go to Workouts', onPress: () => router.push('/(tabs)/workouts') }]
+      );
+    } catch (error) {
+      console.error('Save error:', error);
+      Alert.alert('Error', 'Failed to save program. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Step 1: Basic Info
@@ -342,9 +404,15 @@ export default function AICoachScreen() {
           ))}
         </View>
 
-        <TouchableOpacity style={styles.saveButton}>
+        <TouchableOpacity 
+          style={[styles.saveButton, saving && styles.saveButtonDisabled]} 
+          onPress={handleSaveProgram}
+          disabled={saving}
+        >
           <Ionicons name="download" size={20} color="#fff" />
-          <Text style={styles.saveButtonText}>Save Program</Text>
+          <Text style={styles.saveButtonText}>
+            {saving ? 'Saving...' : 'Save Program'}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.resetButton} onPress={resetForm}>
@@ -636,6 +704,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
   },
   saveButtonText: {
     color: '#fff',

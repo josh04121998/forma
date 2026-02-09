@@ -37,20 +37,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="meals"
+        options={{
+          title: 'Meals',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons name={focused ? 'restaurant' : 'restaurant-outline'} size={24} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="progress"
         options={{
           title: 'Progress',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons name={focused ? 'trending-up' : 'trending-up-outline'} size={24} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="ai"
-        options={{
-          title: 'AI Coach',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons name={focused ? 'sparkles' : 'sparkles-outline'} size={24} color={color} />
           ),
         }}
       />
@@ -63,11 +63,11 @@ export default function TabLayout() {
           ),
         }}
       />
-      {/* Hide meals tab for now - can be accessed from AI Coach */}
+      {/* AI Coach accessed via button on Home/Meals screens */}
       <Tabs.Screen
-        name="meals"
+        name="ai"
         options={{
-          href: null,
+          href: null, // Hide from tab bar
         }}
       />
     </Tabs>

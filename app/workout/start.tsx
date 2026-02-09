@@ -304,7 +304,7 @@ export default function StartWorkoutScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={cancelWorkout}>
+        <TouchableOpacity onPress={cancelWorkout} style={styles.headerButton}>
           <Ionicons name="close" size={28} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
@@ -316,6 +316,7 @@ export default function StartWorkoutScreen() {
         <TouchableOpacity 
           onPress={finishWorkout}
           disabled={saving}
+          style={styles.headerButton}
         >
           <Text style={[styles.finishText, saving && styles.finishTextDisabled]}>
             {saving ? 'Saving...' : 'Finish'}
@@ -644,10 +645,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    minHeight: 56,
     borderBottomWidth: 1,
     borderBottomColor: '#1c1c1e',
+  },
+  headerButton: {
+    padding: 8,
+    minWidth: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerCenter: {
     alignItems: 'center',
@@ -946,11 +954,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   filterScroll: {
-    maxHeight: 40,
+    maxHeight: 44,
+    marginBottom: 8,
   },
   filterContainer: {
     paddingHorizontal: 16,
     gap: 8,
+    flexDirection: 'row',
   },
   filterChip: {
     paddingHorizontal: 14,
