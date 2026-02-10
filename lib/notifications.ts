@@ -1,9 +1,9 @@
-// Notification service for workout reminders
+// Simple notification service for workout reminders
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
 
 const REMINDER_KEY = 'forma_reminders';
+const REMINDER_TIME_KEY = 'forma_reminder_time';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -14,161 +14,134 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export interface WorkoutReminder {
-  id: string;
-  title: string;
-  body: string;
-  weekday: number; // 1 = Sunday, 2 = Monday, etc.
+export interface ReminderSettings {
+  enabledDays: number[]; // 1=Sun, 2=Mon, etc.
   hour: number;
   minute: number;
-  enabled: boolean;
 }
 
-const DEFAULT_REMINDERS: WorkoutReminder[] = [
-  {
-    id: 'mon',
-    title: "Time to train! 💪",
-    body: "Your Monday workout is waiting",
-    weekday: 2, // Monday
-    hour: 17,
-    minute: 0,
-    enabled: false,
-  },
-  {
-    id: 'wed',
-    title: "Midweek gains! 🏋️",
-    body: "Wednesday workout time",
-    weekday: 4, // Wednesday
-    hour: 17,
-    minute: 0,
-    enabled: false,
-  },
-  {
-    id: 'fri',
-    title: "Friday pump! 🔥",
-    body: "End the week strong",
-    weekday: 6, // Friday
-    hour: 17,
-    minute: 0,
-    enabled: false,
-  },
-];
+const DEFAULT_SETTINGS: ReminderSettings = {
+  enabledDays: [],
+  hour: 17, // 5 PM default
+  minute: 0,
+};
 
-// Request notification permissions
-export async function requestPermissions(): Promise<boolean> {
-  const { status: existingStatus } = await Notifications.getPermissionsAsync();
-  
-  if (existingStatus === 'granted') return true;
-  
-  const { status } = await Notifications.requestPermissionsAsync();
-  return status === 'granted';
-}
-
-// Get all reminders
-export async function getReminders(): Promise<WorkoutReminder[]> {
-  try {
-    const data = await AsyncStorage.getItem(REMINDER_KEY);
-    return data ? JSON.parse(data) : DEFAULT_REMINDERS;
-  } catch {
-    return DEFAULT_REMINDERS;
-  }
-}
-
-// Save reminders
-export async function saveReminders(reminders: WorkoutReminder[]): Promise<void> {
-  await AsyncStorage.setItem(REMINDER_KEY, JSON.stringify(reminders));
-  await scheduleAllReminders(reminders);
-}
-
-// Update a single reminder
-export async function updateReminder(
-  id: string, 
-  updates: Partial<WorkoutReminder>
-): Promise<WorkoutReminder[]> {
-  const reminders = await getReminders();
-  const updatedReminders = reminders.map(r => 
-    r.id === id ? { ...r, ...updates } : r
-  );
-  await saveReminders(updatedReminders);
-  return updatedReminders;
-}
-
-// Toggle reminder on/off
-export async function toggleReminder(id: string): Promise<WorkoutReminder[]> {
-  const reminders = await getReminders();
-  const reminder = reminders.find(r => r.id === id);
-  if (reminder) {
-    return updateReminder(id, { enabled: !reminder.enabled });
-  }
-  return reminders;
-}
-
-// Schedule all enabled reminders
-async function scheduleAllReminders(reminders: WorkoutReminder[]): Promise<void> {
-  // Cancel all existing scheduled notifications
-  await Notifications.cancelAllScheduledNotificationsAsync();
-  
-  const hasPermission = await requestPermissions();
-  if (!hasPermission) return;
-
-  // Schedule enabled reminders
-  for (const reminder of reminders) {
-    if (!reminder.enabled) continue;
-
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: reminder.title,
-        body: reminder.body,
-        sound: 'default',
-      },
-      trigger: {
-        weekday: reminder.weekday,
-        hour: reminder.hour,
-        minute: reminder.minute,
-        repeats: true,
-      },
-    });
-  }
-}
-
-// Add a custom one-time reminder
-export async function scheduleOneTimeReminder(
-  title: string,
-  body: string,
-  date: Date
-): Promise<string> {
-  const hasPermission = await requestPermissions();
-  if (!hasPermission) throw new Error('Notification permissions not granted');
-
-  const id = await Notifications.scheduleNotificationAsync({
-    content: {
-      title,
-      body,
-      sound: 'default',
-    },
-    trigger: date,
-  });
-
-  return id;
-}
-
-// Cancel a specific notification
-export async function cancelReminder(notificationId: string): Promise<void> {
-  await Notifications.cancelScheduledNotificationAsync(notificationId);
-}
-
-// Get all scheduled notifications (for debugging)
-export async function getScheduledNotifications() {
-  return Notifications.getAllScheduledNotificationsAsync();
-}
-
-// Days of the week for UI
 export const WEEKDAYS = [
-  { value: 1, label: 'Sunday', short: 'Sun' },
   { value: 2, label: 'Monday', short: 'Mon' },
   { value: 3, label: 'Tuesday', short: 'Tue' },
   { value: 4, label: 'Wednesday', short: 'Wed' },
   { value: 5, label: 'Thursday', short: 'Thu' },
   { value: 6, label: 'Friday', short: 'Fri' },
   { value: 7, label: 'Saturday', short: 'Sat' },
+  { value: 1, label: 'Sunday', short: 'Sun' },
 ];
+
+// Request notification permissions
+export async function requestPermissions(): Promise<boolean> {
+  try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    if (existingStatus === 'granted') return true;
+    
+    const { status } = await Notifications.requestPermissionsAsync();
+    return status === 'granted';
+  } catch (error) {
+    console.log('Notification permission error:', error);
+    return false;
+  }
+}
+
+// Get reminder settings
+export async function getReminderSettings(): Promise<ReminderSettings> {
+  try {
+    const data = await AsyncStorage.getItem(REMINDER_KEY);
+    return data ? JSON.parse(data) : DEFAULT_SETTINGS;
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+// Save reminder settings and reschedule
+export async function saveReminderSettings(settings: ReminderSettings): Promise<void> {
+  try {
+    await AsyncStorage.setItem(REMINDER_KEY, JSON.stringify(settings));
+    await scheduleReminders(settings);
+  } catch (error) {
+    console.log('Error saving reminders:', error);
+  }
+}
+
+// Toggle a specific day
+export async function toggleDay(weekday: number): Promise<ReminderSettings> {
+  const settings = await getReminderSettings();
+  const index = settings.enabledDays.indexOf(weekday);
+  
+  if (index >= 0) {
+    settings.enabledDays.splice(index, 1);
+  } else {
+    settings.enabledDays.push(weekday);
+  }
+  
+  await saveReminderSettings(settings);
+  return settings;
+}
+
+// Update reminder time
+export async function setReminderTime(hour: number, minute: number = 0): Promise<ReminderSettings> {
+  const settings = await getReminderSettings();
+  settings.hour = hour;
+  settings.minute = minute;
+  await saveReminderSettings(settings);
+  return settings;
+}
+
+// Schedule all reminders based on settings
+async function scheduleReminders(settings: ReminderSettings): Promise<void> {
+  try {
+    // Cancel all existing
+    await Notifications.cancelAllScheduledNotificationsAsync();
+    
+    if (settings.enabledDays.length === 0) return;
+    
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) return;
+
+    const messages = [
+      "Time to train! 💪",
+      "Workout time! 🏋️",
+      "Let's get it! 🔥",
+      "Gym time! 💥",
+    ];
+
+    // Schedule for each enabled day
+    for (const weekday of settings.enabledDays) {
+      const dayName = WEEKDAYS.find(d => d.value === weekday)?.label || '';
+      const message = messages[Math.floor(Math.random() * messages.length)];
+      
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: message,
+          body: `Your ${dayName} workout is waiting`,
+          sound: 'default',
+        },
+        trigger: {
+          weekday,
+          hour: settings.hour,
+          minute: settings.minute,
+          repeats: true,
+        },
+      });
+    }
+  } catch (error) {
+    console.log('Error scheduling reminders:', error);
+  }
+}
+
+// Check if notifications are available (for UI)
+export async function checkNotificationSupport(): Promise<boolean> {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    return status !== 'undetermined' || true; // Allow trying
+  } catch {
+    return false;
+  }
+}

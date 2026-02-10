@@ -43,7 +43,7 @@ export default function ProfileScreen() {
   const handleSignOut = () => {
     Alert.alert(
       'Sign Out',
-      'Your local data will be kept. Sign in again to sync.',
+      'Your data will be kept on this device.',
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Sign Out', style: 'destructive', onPress: signOut },
@@ -54,7 +54,7 @@ export default function ProfileScreen() {
   const handleClearData = () => {
     Alert.alert(
       'Clear All Data',
-      'This will delete all local workouts and data. This cannot be undone.',
+      'This will delete all workouts and data. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -102,40 +102,6 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         <Text style={styles.title}>Profile</Text>
-
-        {/* Account Status */}
-        <View style={styles.accountCard}>
-          <View style={styles.accountIcon}>
-            <Ionicons 
-              name={user ? "person-circle" : "person-circle-outline"} 
-              size={48} 
-              color={user ? "#007AFF" : "#888"} 
-            />
-          </View>
-          <View style={styles.accountInfo}>
-            {user ? (
-              <>
-                <Text style={styles.accountEmail}>{user.email}</Text>
-                <Text style={styles.accountStatus}>
-                  <Ionicons name="cloud-done" size={14} color="#30d158" /> Synced to cloud
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={styles.accountTitle}>Local Account</Text>
-                <Text style={styles.accountStatus}>Sign in to backup your data</Text>
-              </>
-            )}
-          </View>
-          {!user && (
-            <TouchableOpacity 
-              style={styles.accountButton}
-              onPress={() => router.push('/auth/signup')}
-            >
-              <Text style={styles.accountButtonText}>Sign Up</Text>
-            </TouchableOpacity>
-          )}
-        </View>
 
         {/* Stats */}
         <View style={styles.statsRow}>
@@ -260,12 +226,17 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Actions */}
+        {/* Account */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account</Text>
           
           {user ? (
             <>
+              <View style={styles.accountInfo}>
+                <Ionicons name="person-circle" size={24} color="#007AFF" />
+                <Text style={styles.accountEmail}>{user.email}</Text>
+              </View>
+              
               <TouchableOpacity style={styles.menuItem} onPress={syncToCloud}>
                 <Ionicons name="cloud-upload-outline" size={22} color="#fff" />
                 <Text style={styles.menuText}>
@@ -281,30 +252,19 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </>
           ) : (
-            <>
-              <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={() => router.push('/auth/login')}
-              >
-                <Ionicons name="log-in-outline" size={22} color="#fff" />
-                <Text style={styles.menuText}>Sign In</Text>
-                <Ionicons name="chevron-forward" size={20} color="#666" />
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={() => router.push('/auth/signup')}
-              >
-                <Ionicons name="person-add-outline" size={22} color="#fff" />
-                <Text style={styles.menuText}>Create Account</Text>
-                <Ionicons name="chevron-forward" size={20} color="#666" />
-              </TouchableOpacity>
-            </>
+            <TouchableOpacity 
+              style={styles.menuItem}
+              onPress={() => router.push('/auth/login')}
+            >
+              <Ionicons name="log-in-outline" size={22} color="#fff" />
+              <Text style={styles.menuText}>Sign In</Text>
+              <Ionicons name="chevron-forward" size={20} color="#666" />
+            </TouchableOpacity>
           )}
           
           <TouchableOpacity style={styles.menuItem} onPress={handleClearData}>
             <Ionicons name="trash-outline" size={22} color="#ff453a" />
-            <Text style={[styles.menuText, { color: '#ff453a' }]}>Clear Local Data</Text>
+            <Text style={[styles.menuText, { color: '#ff453a' }]}>Clear Data</Text>
             <Ionicons name="chevron-forward" size={20} color="#666" />
           </TouchableOpacity>
         </View>
@@ -332,46 +292,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginTop: 16,
     marginBottom: 24,
-  },
-  accountCard: {
-    backgroundColor: '#1c1c1e',
-    borderRadius: 16,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  accountIcon: {
-    marginRight: 12,
-  },
-  accountInfo: {
-    flex: 1,
-  },
-  accountEmail: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  accountTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  accountStatus: {
-    fontSize: 14,
-    color: '#888',
-    marginTop: 2,
-  },
-  accountButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  accountButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
   },
   statsRow: {
     flexDirection: 'row',
@@ -485,6 +405,19 @@ const styles = StyleSheet.create({
   },
   menuText: {
     flex: 1,
+    fontSize: 16,
+    color: '#fff',
+  },
+  accountInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1c1c1e',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+    gap: 12,
+  },
+  accountEmail: {
     fontSize: 16,
     color: '#fff',
   },
