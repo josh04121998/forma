@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forma App Store Screenshots</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      background: #1a1a1a;
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+      padding: 40px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 30px;
+      justify-content: center;
+    }
+    
+    .screenshot {
+      width: 430px; /* 1290/3 for display */
+      height: 932px; /* 2796/3 for display */
+      background: linear-gradient(180deg, #000000 0%, #0a0a0a 100%);
+      border-radius: 40px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      border: 3px solid #333;
+    }
+    
+    .text-area {
+      padding: 60px 30px 30px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    
+    .headline {
+      font-size: 36px;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 12px;
+      line-height: 1.1;
+    }
+    
+    .subtext {
+      font-size: 18px;
+      color: #888888;
+      font-weight: 400;
+    }
+    
+    .phone-frame {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      padding: 0 20px 0;
+      overflow: hidden;
+    }
+    
+    .phone {
+      width: 320px;
+      height: 650px;
+      background: #000;
+      border-radius: 35px;
+      border: 4px solid #333;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    }
+    
+    .phone-screen {
+      width: 100%;
+      height: 100%;
+      background: #000;
+      padding: 50px 16px 30px;
+      overflow: hidden;
+    }
+    
+    .notch {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100px;
+      height: 28px;
+      background: #000;
+      border-radius: 20px;
+      z-index: 10;
+    }
+    
+    /* App UI Mockups */
+    .app-header {
+      font-size: 28px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 20px;
+    }
+    
+    .card {
+      background: #1c1c1e;
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+    
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #fff;
+      margin-bottom: 4px;
+    }
+    
+    .card-meta {
+      font-size: 12px;
+      color: #888;
+    }
+    
+    .btn {
+      background: #007AFF;
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      display: inline-block;
+    }
+    
+    .btn-green {
+      background: #30d158;
+    }
+    
+    .exercise-row {
+      display: flex;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #333;
+    }
+    
+    .exercise-name {
+      flex: 1;
+      font-size: 14px;
+      color: #fff;
+      font-weight: 500;
+    }
+    
+    .set-badge {
+      background: #2c2c2e;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      color: #888;
+      margin-left: 6px;
+    }
+    
+    .set-done {
+      background: #1a3a1a;
+      color: #30d158;
+    }
+    
+    .timer-circle {
+      width: 180px;
+      height: 180px;
+      border-radius: 50%;
+      border: 8px solid #007AFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 30px auto;
+    }
+    
+    .timer-text {
+      font-size: 48px;
+      font-weight: 700;
+      color: #fff;
+    }
+    
+    .ai-badge {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      color: #fff;
+      font-weight: 600;
+      display: inline-block;
+      margin-bottom: 10px;
+    }
+    
+    .macro-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    
+    .macro-item {
+      flex: 1;
+      background: #2c2c2e;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+    
+    .macro-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+    }
+    
+    .macro-label {
+      font-size: 10px;
+      color: #888;
+      margin-top: 2px;
+    }
+    
+    .plate {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #ff3b30;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      margin: 4px;
+    }
+    
+    .plate.blue { background: #007AFF; }
+    .plate.yellow { background: #ffcc00; color: #000; }
+    .plate.green { background: #30d158; }
+    .plate.small { width: 30px; height: 30px; font-size: 10px; }
+    
+    .history-item {
+      background: #1c1c1e;
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+    
+    .history-date {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+    }
+    
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    
+    .tab {
+      flex: 1;
+      padding: 10px;
+      background: #1c1c1e;
+      border-radius: 10px;
+      text-align: center;
+      font-size: 13px;
+      color: #888;
+      font-weight: 600;
+    }
+    
+    .tab.active {
+      background: #007AFF;
+      color: #fff;
+    }
+    
+    .accent {
+      color: #007AFF;
+    }
+    
+    .label {
+      font-size: 10px;
+      text-transform: uppercase;
+      color: #666;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+    
+    /* Instructions */
+    .instructions {
+      width: 100%;
+      max-width: 1200px;
+      background: #222;
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 30px;
+      color: #fff;
+    }
+    
+    .instructions h2 {
+      margin-bottom: 12px;
+      color: #007AFF;
+    }
+    
+    .instructions ol {
+      padding-left: 20px;
+    }
+    
+    .instructions li {
+      margin-bottom: 8px;
+      color: #ccc;
+    }
+    
+    .instructions code {
+      background: #333;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="instructions">
+  <h2>📱 How to Create Your App Store Screenshots</h2>
+  <ol>
+    <li>Take real screenshots from the Forma app on your iPhone</li>
+    <li>Replace the mockup screens below with your actual screenshots</li>
+    <li>Use Figma, Canva, or any image editor to composite them</li>
+    <li>Export at <code>1290 x 2796</code> pixels (iPhone 15 Pro Max)</li>
+    <li>Or use this as visual reference for the style/layout</li>
+  </ol>
+</div>
+
+<!-- Screenshot 1: Hero -->
+<div class="screenshot">
+  <div class="text-area">
+    <div class="headline">Track Every Rep</div>
+    <div class="subtext">Simple, powerful workout logging</div>
+  </div>
+  <div class="phone-frame">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="phone-screen">
+        <div class="app-header">Workouts</div>
+        <div class="tabs">
+          <div class="tab active">Templates</div>
+          <div class="tab">History</div>
+        </div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div class="card-title">Push Day</div>
+              <div class="card-meta">6 exercises • Default</div>
+            </div>
+            <div class="btn">Start</div>
+          </div>
+        </div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div class="card-title">Pull Day</div>
+              <div class="card-meta">6 exercises • Default</div>
+            </div>
+            <div class="btn">Start</div>
+          </div>
+        </div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div class="card-title">Leg Day</div>
+              <div class="card-meta">6 exercises • Default</div>
+            </div>
+            <div class="btn">Start</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Screenshot 2: Active Workout -->
+<div class="screenshot">
+  <div class="text-area">
+    <div class="headline">Beat Your Last<br>Workout</div>
+    <div class="subtext">See previous performance for every set</div>
+  </div>
+  <div class="phone-frame">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="phone-screen">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <span style="color:#fff;font-size:14px;">✕</span>
+          <span style="color:#fff;font-weight:600;">Push Day</span>
+          <span class="btn btn-green" style="font-size:11px;">Finish</span>
+        </div>
+        <div class="card">
+          <div class="card-title">Bench Press</div>
+          <div class="card-meta" style="margin-bottom:8px;">Last: 80×8, 80×8, 85×6</div>
+          <div style="display:flex;gap:4px;">
+            <span class="set-badge set-done">80kg × 10 ✓</span>
+            <span class="set-badge set-done">82.5kg × 8 ✓</span>
+            <span class="set-badge">Set 3</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Incline Dumbbell Press</div>
+          <div class="card-meta" style="margin-bottom:8px;">Last: 30×10, 30×10, 30×8</div>
+          <div style="display:flex;gap:4px;">
+            <span class="set-badge">Set 1</span>
+            <span class="set-badge">Set 2</span>
+            <span class="set-badge">Set 3</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Screenshot 3: Rest Timer -->
+<div class="screenshot">
+  <div class="text-area">
+    <div class="headline">Stay On Track</div>
+    <div class="subtext">Auto rest timer between sets</div>
+  </div>
+  <div class="phone-frame">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="phone-screen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <div style="color:#888;font-size:14px;margin-bottom:10px;">REST</div>
+        <div class="timer-circle">
+          <div class="timer-text">1:23</div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:20px;">
+          <div style="background:#2c2c2e;padding:10px 16px;border-radius:8px;color:#fff;font-size:13px;">-15s</div>
+          <div style="background:#007AFF;padding:10px 20px;border-radius:8px;color:#fff;font-size:13px;font-weight:600;">Skip</div>
+          <div style="background:#2c2c2e;padding:10px 16px;border-radius:8px;color:#fff;font-size:13px;">+15s</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Screenshot 4: AI Coach -->
+<div class="screenshot">
+  <div class="text-area">
+    <div class="headline">AI-Powered<br>Programs</div>
+    <div class="subtext">Personalized plans for your goals</div>
+  </div>
+  <div class="phone-frame">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="phone-screen">
+        <div class="app-header">AI Coach</div>
+        <div class="ai-badge">✨ Generated for You</div>
+        <div class="card">
+          <div class="card-title">Hypertrophy Program</div>
+          <div class="card-meta">5 days/week • 60 min sessions</div>
+          <div class="macro-row">
+            <div class="macro-item">
+              <div class="macro-value">2,450</div>
+              <div class="macro-label">Calories</div>
+            </div>
+            <div class="macro-item">
+              <div class="macro-value">180g</div>
+              <div class="macro-label">Protein</div>
+            </div>
+            <div class="macro-item">
+              <div class="macro-value">260g</div>
+              <div class="macro-label">Carbs</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Monday - Push</div>
+          <div class="card-meta">7 exercises • Chest & Shoulders</div>
+        </div>
+        <div class="card">
+          <div class="card-title">Tuesday - Pull</div>
+          <div class="card-meta">6 exercises • Back & Biceps</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Screenshot 5: Tools -->
+<div class="screenshot">
+  <div class="text-area">
+    <div class="headline">Built-In Tools</div>
+    <div class="subtext">Plate calculator, 1RM, and more</div>
+  </div>
+  <div class="phone-frame">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="phone-screen" style="text-align:center;">
+        <div style="color:#888;font-size:12px;margin-bottom:8px;">PLATE CALCULATOR</div>
+        <div style="font-size:36px;font-weight:700;color:#fff;margin-bottom:20px;">100 kg</div>
+        <div style="color:#888;font-size:12px;margin-bottom:12px;">Each side (20kg bar):</div>
+        <div style="margin-bottom:20px;">
+          <span class="plate">20</span>
+          <span class="plate blue">10</span>
+          <span class="plate yellow">5</span>
+          <span class="plate green small">2.5</span>
+          <span class="plate small" style="background:#888;">2.5</span>
+        </div>
+        <div style="background:#1c1c1e;border-radius:12px;padding:16px;text-align:left;margin-top:20px;">
+          <div style="color:#888;font-size:11px;margin-bottom:8px;">1RM CALCULATOR</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="color:#fff;font-size:14px;">Bench Press</div>
+              <div style="color:#888;font-size:12px;">80kg × 8 reps</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="color:#007AFF;font-size:20px;font-weight:700;">98kg</div>
+              <div style="color:#888;font-size:10px;">Est. 1RM</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Screenshot 6: History -->
+<div class="screenshot">
+  <div class="text-area">
+    <div class="headline">Track Your Gains</div>
+    <div class="subtext">Never lose your workout data</div>
+  </div>
+  <div class="phone-frame">
+    <div class="phone">
+      <div class="notch"></div>
+      <div class="phone-screen">
+        <div class="app-header">History</div>
+        <div class="label">This Week</div>
+        <div class="history-item">
+          <div class="card-title">Push Day</div>
+          <div class="history-date">Today • 45 min • 18 sets</div>
+        </div>
+        <div class="history-item">
+          <div class="card-title">Pull Day</div>
+          <div class="history-date">Yesterday • 52 min • 20 sets</div>
+        </div>
+        <div class="history-item">
+          <div class="card-title">Leg Day</div>
+          <div class="history-date">Monday • 48 min • 16 sets</div>
+        </div>
+        <div class="label" style="margin-top:16px;">Last Week</div>
+        <div class="history-item">
+          <div class="card-title">Push Day</div>
+          <div class="history-date">Feb 8 • 42 min • 18 sets</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
