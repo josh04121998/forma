@@ -10,9 +10,15 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.forma.app",
+      "bundleIdentifier": "com.formafit.app",
+      "buildNumber": "1",
       "infoPlist": {
-        "UIBackgroundModes": ["fetch", "remote-notification"]
+        "UIBackgroundModes": ["fetch", "remote-notification"],
+        "NSHealthShareUsageDescription": "Forma uses health data to track your fitness progress.",
+        "NSHealthUpdateUsageDescription": "Forma saves your workout data to Apple Health."
+      },
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {
@@ -20,7 +26,8 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.forma.app"
+      "package": "com.formafit.app",
+      "versionCode": 1
     },
     "web": {
       "bundler": "metro",
@@ -40,6 +47,12 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "YOUR_EAS_PROJECT_ID"
+      }
+    },
+    "owner": "YOUR_EXPO_USERNAME"
   }
 }
