@@ -1,9 +1,9 @@
 // Simple notification service for workout reminders
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const REMINDER_KEY = 'forma_reminders';
-const REMINDER_TIME_KEY = 'forma_reminder_time';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -39,6 +39,8 @@ export const WEEKDAYS = [
 // Request notification permissions
 export async function requestPermissions(): Promise<boolean> {
   try {
+    if (Platform.OS === 'web') return false;
+    
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     if (existingStatus === 'granted') return true;
     
@@ -54,17 +56,27 @@ export async function requestPermissions(): Promise<boolean> {
 export async function getReminderSettings(): Promise<ReminderSettings> {
   try {
     const data = await AsyncStorage.getItem(REMINDER_KEY);
-    return data ? JSON.parse(data) : DEFAULT_SETTINGS;
+    if (data) {
+      const parsed = JSON.parse(data);
+      // Ensure valid structure
+      return {
+        enabledDays: Array.isArray(parsed.enabledDays) ? parsed.enabledDays : [],
+        hour: typeof parsed.hour === 'number' ? parsed.hour : 17,
+        minute: typeof parsed.minute === 'number' ? parsed.minute : 0,
+      };
+    }
+    return DEFAULT_SETTINGS;
   } catch {
     return DEFAULT_SETTINGS;
   }
 }
 
-// Save reminder settings and reschedule
+// Save reminder settings (without scheduling - that's separate)
 export async function saveReminderSettings(settings: ReminderSettings): Promise<void> {
   try {
     await AsyncStorage.setItem(REMINDER_KEY, JSON.stringify(settings));
-    await scheduleReminders(settings);
+    // Schedule in background, don't await to prevent crashes
+    scheduleReminders(settings).catch(e => console.log('Schedule error:', e));
   } catch (error) {
     console.log('Error saving reminders:', error);
   }
@@ -72,35 +84,47 @@ export async function saveReminderSettings(settings: ReminderSettings): Promise<
 
 // Toggle a specific day
 export async function toggleDay(weekday: number): Promise<ReminderSettings> {
-  const settings = await getReminderSettings();
-  const index = settings.enabledDays.indexOf(weekday);
-  
-  if (index >= 0) {
-    settings.enabledDays.splice(index, 1);
-  } else {
-    settings.enabledDays.push(weekday);
+  try {
+    const settings = await getReminderSettings();
+    const index = settings.enabledDays.indexOf(weekday);
+    
+    if (index >= 0) {
+      settings.enabledDays.splice(index, 1);
+    } else {
+      settings.enabledDays.push(weekday);
+    }
+    
+    await saveReminderSettings(settings);
+    return settings;
+  } catch (error) {
+    console.log('Error toggling day:', error);
+    return await getReminderSettings();
   }
-  
-  await saveReminderSettings(settings);
-  return settings;
 }
 
 // Update reminder time
 export async function setReminderTime(hour: number, minute: number = 0): Promise<ReminderSettings> {
-  const settings = await getReminderSettings();
-  settings.hour = hour;
-  settings.minute = minute;
-  await saveReminderSettings(settings);
-  return settings;
+  try {
+    const settings = await getReminderSettings();
+    settings.hour = hour;
+    settings.minute = minute;
+    await saveReminderSettings(settings);
+    return settings;
+  } catch (error) {
+    console.log('Error setting time:', error);
+    return await getReminderSettings();
+  }
 }
 
 // Schedule all reminders based on settings
 async function scheduleReminders(settings: ReminderSettings): Promise<void> {
   try {
+    if (Platform.OS === 'web') return;
+    
     // Cancel all existing
     await Notifications.cancelAllScheduledNotificationsAsync();
     
-    if (settings.enabledDays.length === 0) return;
+    if (!settings.enabledDays || settings.enabledDays.length === 0) return;
     
     const hasPermission = await requestPermissions();
     if (!hasPermission) return;
@@ -114,33 +138,37 @@ async function scheduleReminders(settings: ReminderSettings): Promise<void> {
 
     // Schedule for each enabled day
     for (const weekday of settings.enabledDays) {
-      const dayName = WEEKDAYS.find(d => d.value === weekday)?.label || '';
-      const message = messages[Math.floor(Math.random() * messages.length)];
-      
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: message,
-          body: `Your ${dayName} workout is waiting`,
-          sound: 'default',
-        },
-        trigger: {
-          weekday,
-          hour: settings.hour,
-          minute: settings.minute,
-          repeats: true,
-        },
-      });
+      try {
+        const dayName = WEEKDAYS.find(d => d.value === weekday)?.label || '';
+        const message = messages[weekday % messages.length];
+        
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: message,
+            body: `Your ${dayName} workout is waiting`,
+            sound: true,
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+            weekday: weekday,
+            hour: settings.hour,
+            minute: settings.minute,
+          },
+        });
+      } catch (dayError) {
+        console.log(`Error scheduling ${weekday}:`, dayError);
+      }
     }
   } catch (error) {
     console.log('Error scheduling reminders:', error);
   }
 }
 
-// Check if notifications are available (for UI)
+// Check if notifications are available
 export async function checkNotificationSupport(): Promise<boolean> {
   try {
-    const { status } = await Notifications.getPermissionsAsync();
-    return status !== 'undetermined' || true; // Allow trying
+    if (Platform.OS === 'web') return false;
+    return true;
   } catch {
     return false;
   }

@@ -50,6 +50,82 @@ export interface GeneratedProgram {
   };
 }
 
+// Goal-specific training protocols (evidence-based)
+function getGoalProtocol(goal: string): string {
+  switch (goal) {
+    case 'build_muscle':
+      return `**HYPERTROPHY PROTOCOL (Muscle Building):**
+- Rep range: 8-12 reps for most exercises (mechanical tension + metabolic stress)
+- Sets: 3-4 sets per exercise, 10-20 sets per muscle group per week
+- Rest: 60-90 seconds between sets (keeps metabolic stress high)
+- Tempo: 2-3 seconds eccentric, 1 second concentric
+- Focus on progressive overload and mind-muscle connection
+- Include both compound movements AND isolation exercises
+- Prioritize protein: 1.6-2.2g per kg bodyweight
+- Caloric surplus: +200-300 calories above TDEE`;
+
+    case 'lose_fat':
+      return `**FAT LOSS / METABOLIC PROTOCOL:**
+- Use SUPERSETS and CIRCUITS to maximize calorie burn and keep heart rate elevated
+- Rep range: 12-15 reps (higher volume, lower rest)
+- Rest: 30-45 seconds between sets, minimal rest in supersets
+- Include metabolic finishers (battle ropes, burpees, etc.)
+- Pair opposing muscle groups in supersets (e.g., push/pull)
+- Compound movements prioritized for max calorie expenditure
+- HIIT elements encouraged where appropriate
+- Protein high: 2.0-2.4g per kg to preserve muscle
+- Caloric deficit: -400-500 calories below TDEE`;
+
+    case 'strength':
+      return `**STRENGTH / POWERLIFTING PROTOCOL:**
+- Rep range: 3-6 reps for main lifts (maximal strength)
+- Sets: 4-6 sets for compound lifts
+- Rest: 3-5 MINUTES between heavy sets (full ATP recovery)
+- Focus on the big 3: Squat, Bench, Deadlift variations
+- Progressive overload is #1 priority
+- Accessory work: 8-12 reps to build supporting muscles
+- Lower total exercise count, higher intensity
+- Protein: 1.6-2.0g per kg bodyweight
+- Slight caloric surplus or maintenance`;
+
+    case 'maintain':
+    default:
+      return `**GENERAL FITNESS / MAINTENANCE PROTOCOL:**
+- Mix of cardio AND resistance training for overall health
+- Rep range: Varied (8-15 reps depending on exercise)
+- Rest: 60-90 seconds
+- Include 2-3 cardio sessions (LISS or moderate intensity)
+- Full body or upper/lower splits work well
+- Focus on movement quality and consistency
+- Balance all muscle groups, prevent imbalances
+- Maintenance calories (TDEE)
+- Moderate protein: 1.4-1.6g per kg bodyweight`;
+  }
+}
+
+function getExerciseGuidelines(goal: string, duration: number): string {
+  const baseCount = duration === 30 ? '4-5' : duration === 45 ? '5-6' : duration === 60 ? '6-8' : '8-10';
+  
+  switch (goal) {
+    case 'lose_fat':
+      return `- ${baseCount} exercises per workout
+- Structure as 2-3 SUPERSETS (A1/A2 format) to maximize efficiency
+- Include at least one metabolic finisher or circuit
+- Example superset: Bench Press → Bent Over Row (no rest between)`;
+    
+    case 'strength':
+      return `- ${duration <= 45 ? '3-4' : '4-6'} exercises per workout (quality over quantity)
+- 1-2 main compound lifts with longer rest
+- 2-3 accessory exercises with moderate rest
+- Don't rush - strength requires full recovery between sets`;
+    
+    default:
+      return `- ${baseCount} exercises per workout
+- Mix of compound and isolation movements
+- Can include optional supersets for efficiency`;
+  }
+}
+
 async function callGroq(prompt: string, apiKey: string): Promise<string> {
   console.log('Calling Groq API...');
   
@@ -88,60 +164,84 @@ export async function generateFullProgram(profile: UserProfile, apiKey: string):
     throw new Error('API key is required. Set EXPO_PUBLIC_GROQ_API_KEY in your .env file.');
   }
 
-  // Calculate TDEE and calorie targets
+  // Calculate TDEE and calorie targets using Mifflin-St Jeor
   const bmr = profile.gender === 'male'
-    ? 88.362 + (13.397 * profile.weight) + (4.799 * profile.height) - (5.677 * profile.age)
-    : 447.593 + (9.247 * profile.weight) + (3.098 * profile.height) - (4.330 * profile.age);
+    ? (10 * profile.weight) + (6.25 * profile.height) - (5 * profile.age) + 5
+    : (10 * profile.weight) + (6.25 * profile.height) - (5 * profile.age) - 161;
   
   const activityMultiplier = profile.workoutDays <= 2 ? 1.375 : profile.workoutDays <= 4 ? 1.55 : 1.725;
   const tdee = Math.round(bmr * activityMultiplier);
   
+  // Goal-specific calorie adjustments
   let targetCalories = tdee;
-  if (profile.goal === 'lose_fat') targetCalories = tdee - 500;
-  if (profile.goal === 'build_muscle') targetCalories = tdee + 300;
+  let proteinPerKg = 1.6;
   
-  const prompt = `You are a professional fitness coach and nutritionist. Create a complete fitness program for this client:
+  switch (profile.goal) {
+    case 'lose_fat':
+      targetCalories = tdee - 500; // 500 cal deficit
+      proteinPerKg = 2.2; // Higher protein to preserve muscle
+      break;
+    case 'build_muscle':
+      targetCalories = tdee + 250; // Lean bulk
+      proteinPerKg = 2.0;
+      break;
+    case 'strength':
+      targetCalories = tdee + 100; // Slight surplus
+      proteinPerKg = 1.8;
+      break;
+    case 'maintain':
+    default:
+      targetCalories = tdee;
+      proteinPerKg = 1.6;
+  }
+  
+  const proteinGrams = Math.round(profile.weight * proteinPerKg);
+  
+  const goalProtocol = getGoalProtocol(profile.goal);
+  const exerciseGuidelines = getExerciseGuidelines(profile.goal, profile.workoutDuration);
+
+  const prompt = `You are an evidence-based fitness coach and sports nutritionist. Create a science-backed program.
 
 **Client Profile:**
 - Age: ${profile.age}
 - Gender: ${profile.gender}
 - Height: ${profile.height}cm
 - Weight: ${profile.weight}kg
-- Goal: ${profile.goal.replace('_', ' ')}
+- Goal: ${profile.goal.replace('_', ' ').toUpperCase()}
 - Experience: ${profile.experience}
-- Available days per week: ${profile.workoutDays}
-- Time per workout: ${profile.workoutDuration} minutes (STRICT - workouts must fit this time limit)
+- Training days: ${profile.workoutDays} per week
+- Session duration: ${profile.workoutDuration} minutes (STRICT limit)
 - Equipment: ${profile.equipment.replace('_', ' ')}
 ${profile.injuries ? `- Injuries/Limitations: ${profile.injuries}` : ''}
 ${profile.dietaryRestrictions?.length ? `- Dietary restrictions: ${profile.dietaryRestrictions.join(', ')}` : ''}
 
 **Calculated Targets:**
-- TDEE: ${tdee} calories
-- Target calories: ${targetCalories} calories
+- BMR: ${Math.round(bmr)} cal | TDEE: ${tdee} cal
+- Target: ${targetCalories} calories
+- Protein target: ${proteinGrams}g (${proteinPerKg}g/kg)
 
-**Exercise Count Guidelines (STRICT - based on workout duration):**
-- 30 min workouts: 4-5 exercises (compound focus, supersets encouraged)
-- 45 min workouts: 5-6 exercises 
-- 60 min workouts: 6-8 exercises
-- 90 min workouts: 8-10 exercises
+${goalProtocol}
 
-Create a comprehensive program. Return ONLY valid JSON (no markdown, no explanation):
+**Exercise Count:**
+${exerciseGuidelines}
+
+Return ONLY valid JSON (no markdown, no explanation):
 
 {
-  "summary": "Brief 2-3 sentence overview of the program and expected results",
+  "summary": "Brief 2-3 sentence overview tailored to their ${profile.goal.replace('_', ' ')} goal",
   "calories": ${targetCalories},
-  "protein": <grams based on goal>,
-  "carbs": <grams>,
-  "fat": <grams>,
+  "protein": ${proteinGrams},
+  "carbs": <calculated grams>,
+  "fat": <calculated grams>,
   "workoutPlan": {
-    "name": "Program name",
+    "name": "Program name reflecting the goal",
     "schedule": [
       {
         "day": "Monday",
         "workout": {
-          "name": "Workout name (e.g., Push Day)",
+          "name": "Workout name",
           "exercises": [
-            {"name": "Exercise", "sets": 3, "reps": "8-12", "rest": "90s", "notes": "optional tip"}
+            {"name": "Exercise", "sets": 4, "reps": "8-12", "rest": "90s", "notes": "form cue or tip"}
           ]
         }
       },
@@ -153,20 +253,20 @@ Create a comprehensive program. Return ONLY valid JSON (no markdown, no explanat
       {
         "name": "Breakfast",
         "foods": [
-          {"name": "Food item", "portion": "1 cup", "calories": 300, "protein": 20}
+          {"name": "Food item", "portion": "amount", "calories": 300, "protein": 25}
         ]
       }
     ]
   }
 }
 
-CRITICAL REQUIREMENTS:
-- Include all 7 days in the schedule
-- Match workout days to ${profile.workoutDays} training days
-- Each workout MUST have the appropriate number of exercises for ${profile.workoutDuration} minute sessions (see guidelines above)
-- Each workout must be completable in ${profile.workoutDuration} minutes or less (including rest periods)
-- Meal plan should hit the calorie and macro targets
-- Include variety: compound movements, isolation work, and accessory exercises`;
+REQUIREMENTS:
+- Include all 7 days (${profile.workoutDays} training + rest days)
+- FOLLOW THE ${profile.goal.replace('_', ' ').toUpperCase()} PROTOCOL STRICTLY
+- Each workout must fit in ${profile.workoutDuration} minutes INCLUDING rest periods
+- For fat loss: USE SUPERSETS (notate as "A1/A2" or "superset with X")
+- For strength: Include proper long rest periods (3-5 min)
+- Macros must add up to calorie target (protein: 4cal/g, carbs: 4cal/g, fat: 9cal/g)`;
 
   const response = await callGroq(prompt, apiKey);
   
